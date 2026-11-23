@@ -1,0 +1,14 @@
+{
+  "contract_id": "UNVERIFIED",
+  "nfft": 2048,
+  "bytes_per_sample": 4,
+  "byte_order": "UNVERIFIED",
+  "iq_order": "UNVERIFIED",
+  "encoding": "UNVERIFIED",
+  "direction": "UNVERIFIED",
+  "scaling": "UNVERIFIED",
+  "quantization": "UNVERIFIED",
+  "output_order": "UNVERIFIED",
+  "config_word": "UNVERIFIED",
+  "schema": "ffttest-manifest-v1"
+}

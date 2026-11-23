@@ -1,0 +1,33 @@
+{
+  "schema": "ffttest-batch-v1",
+  "contract_id": "FFTTest-ref-3656ea4e7423-20261111-2048fwd",
+  "dataset_id": "radarsat1-fft2048-batch-common-scale-v1",
+  "frame_count": 2,
+  "frame_bytes": 8192,
+  "total_bytes": 16384,
+  "nfft": 2048,
+  "mode_sel": "0b01",
+  "config_word": "0x0D550B",
+  "selected_columns": [
+    2017,
+    2048
+  ],
+  "scale_factor": 185.1384772515982,
+  "component_type": "signed int16 I/Q",
+  "word_layout": "bits[31:16]=Q, bits[15:0]=I",
+  "byte_order": "little-endian",
+  "frame_layout": "frame-major contiguous; no header or padding; 8192 bytes per frame",
+  "sample_order": "2048 natural input samples per frame",
+  "fft_direction": "forward",
+  "fft_output_order": "natural",
+  "fft_output_scale": 0.00048828125,
+  "quantization": "one common I/Q scale shared by the 64-frame master set",
+  "input_file": "fft_batch_input.bin",
+  "output_file": "fft_batch_output.bin",
+  "reference_file": "fft_batch_reference.mat",
+  "input_sha256": "f587f3602fe7f9e66927b60beaa22121e359764c98e1ec0595acaf657b70040a",
+  "reference_sha256": "2fad211bf8575a8771893e827367745041d1445a9489620806490a0fa2c204c9",
+  "input_saturation_count": 0,
+  "binary_readback_exact": true,
+  "reference_max_abs_error": 0
+}

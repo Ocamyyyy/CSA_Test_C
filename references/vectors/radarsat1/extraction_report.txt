@@ -1,0 +1,22 @@
+RADARSAT-1 REAL DATA FFT EXTRACTION
+source_repository=D:\Workspace\SAR-Synthetic-Aperture-Radar
+loader=radarsat1_full_params + load_radarsat1_full_data
+processing_dimensions=2048x3000
+source_dimensions=1536x2048
+selection_rule=maximum energy among nonzero finite columns 1:2048
+selected_column=2017
+column_energy=15846789.389248688
+nonzero_samples=1536
+max_magnitude=225.26696145272126
+rms_magnitude=87.964141168257228
+max_abs_real=159.28779602050781
+max_abs_imag=159.28779602050781
+scale_factor=185.1384772515982
+quantization_relative_l2=2.1357711619981555e-05
+quantization_max_abs_error=0.0037142079134141019
+quantization_rmse=0.0018787127599709833
+input_bytes=8192
+binary_readback_exact=1
+input_saturation_count=0
+reference_max_abs_error=0
+RADARSAT1_REALDATA_EXTRACTION_PASS=1

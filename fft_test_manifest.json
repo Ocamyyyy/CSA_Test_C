@@ -1,0 +1,16 @@
+{
+  "contract_id": "FFTTest-ref-3656ea4e7423-20261111-2048fwd",
+  "nfft": 2048,
+  "bytes_per_sample": 4,
+  "byte_order": "little",
+  "iq_order": "I-low",
+  "encoding": "signed-int16",
+  "direction": "forward",
+  "scaling": "SCALE_SCH=0x6AA; total shift=11; gain=1/2048",
+  "quantization": "XFFT convergent_rounding; scaled signed16; no external conversion; OVFLO disabled",
+  "output_order": "natural",
+  "config_word": "0x0D550B",
+  "schema": "ffttest-manifest-v1",
+  "provenance": "Derived on Ubuntu from references/matlab/fft_config.md and supplied RTL/XCI; not an original MATLAB JSON",
+  "matlab_json_supplied": false
+}

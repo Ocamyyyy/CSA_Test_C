@@ -1,0 +1,19 @@
+{
+  "contract_id": "FFTTest-ref-3656ea4e7423-20261111-2048fwd",
+  "nfft": 2048,
+  "bytes_per_sample": 4,
+  "byte_order": "little",
+  "iq_order": "I-low",
+  "encoding": "signed-int16",
+  "direction": "forward",
+  "scaling": "SCALE_SCH=0x6AA; total shift=11; gain=1/2048",
+  "quantization": "XFFT convergent_rounding; scaled signed16; no external conversion; OVFLO disabled",
+  "output_order": "natural",
+  "config_word": "0x0D550B",
+  "schema": "ffttest-batch-v1",
+  "provenance": "Template only; match contract_id and FFT fields to the operator verified board contract and current Windows manifest",
+  "matlab_json_supplied": false,
+  "frame_count": 2,
+  "frame_bytes": 8192,
+  "dataset_id": "replace-with-Windows-batch-dataset-id"
+}
