@@ -1,6 +1,8 @@
 /* Link main with test-only providers: prove inspect never requests writes,
  * and offline validation never calls any hardware provider. */
 #include "ffttest.h"
+#include "m2.h"
+#include "fft_m2.h"
 #include <assert.h>
 #include <string.h>
 int ffttest_entry(int,char **);
@@ -25,6 +27,11 @@ void ubuf_close(struct ubuf *u){(void)u;assert(0);}
 void ubuf_write_frame(void *d,const unsigned char *s){(void)d;(void)s;assert(0);}
 void ubuf_zero_frame(void *d){(void)d;assert(0);}
 void ubuf_read_frame(unsigned char *d,const void *s){(void)d;(void)s;assert(0);}
+int m2_validate(const struct m2_options *o,struct contract *c,int *i,int *k){(void)o;(void)c;(void)i;(void)k;assert(0);return -1;}
+int m2_execute(const struct m2_options *o,const struct contract *c,int i,int k){(void)o;(void)c;(void)i;(void)k;assert(0);return -1;}
+int m2_inspect(void){assert(0);return -1;}
+int fft_m2_validate(const struct fft_m2_options *o,struct contract *a,struct contract *b,int *i,int *k){(void)o;(void)a;(void)b;(void)i;(void)k;assert(0);return -1;}
+int fft_m2_execute(const struct fft_m2_options *o,const struct contract *a,const struct contract *b,int i,int k){(void)o;(void)a;(void)b;(void)i;(void)k;assert(0);return -1;}
 int main(int argc,char **argv){
  int inspect=0;for(int i=1;i<argc;i++)if(!strcmp(argv[i],"--inspect"))inspect=1;
  int rc=ffttest_entry(argc,argv);

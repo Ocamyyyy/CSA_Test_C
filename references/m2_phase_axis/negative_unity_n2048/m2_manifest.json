@@ -1,0 +1,66 @@
+{
+  "schema": "m2-phase-axis-test-v1",
+  "test_id": "negative_unity_n2048",
+  "description": "Exact negative unity phase in signed Q1.15.",
+  "sample_count": 2048,
+  "maximum_supported_samples": 4096,
+  "vector_len_coefficient": 2048,
+  "vector_len_data": 2048,
+  "protocol_order": "load N coefficients, then stream N data samples",
+  "format": {
+    "word_bits": 32,
+    "byte_order": "little-endian",
+    "i_field": "[15:0] signed int16",
+    "q_field": "[31:16] signed int16"
+  },
+  "quantization": {
+    "data": "signed int16, round-to-nearest ties-to-even, saturate",
+    "data_scale": 1,
+    "coefficient": "signed Q1.15, round-to-nearest ties-to-even, saturate",
+    "positive_one": "32767/32768 (raw 32767)"
+  },
+  "arithmetic": "four signed 16x16 multiplies; signed 33-bit accumulators; divide by 2^15; round-to-nearest ties-to-even; signed int16 saturation",
+  "source": {
+    "kind": "synthetic",
+    "algorithm_stage": "standalone m2_phase_axis arithmetic validation",
+    "generation_rule": "constant -1 phase"
+  },
+  "statistics": {
+    "input_saturation_component_count": 0,
+    "coefficient_saturation_component_count": 0,
+    "output_saturation_component_count": 0,
+    "output_saturation_sample_count": 0
+  },
+  "validation": {
+    "binary_readback_bit_exact": true,
+    "independent_integer_reference_bit_exact": true,
+    "file_lengths_ok": true
+  },
+  "files": [
+    {
+      "name": "m2_input.bin",
+      "bytes": 8192,
+      "sha256": "aacec6ff3c218fb5e70e9a8cce38ac07f5e0a5b1f885701920dc835c58676689"
+    },
+    {
+      "name": "m2_coeff.bin",
+      "bytes": 8192,
+      "sha256": "33a5ebd7d06776bfdb1bc893e7815ed1ba1c8560e734d516e429c00bece6c659"
+    },
+    {
+      "name": "m2_expected.bin",
+      "bytes": 8192,
+      "sha256": "ed0aaed014de4ee3ce1d086d6a5b1200fa99ad1a59f2db3c5a6ca3624772fa59"
+    },
+    {
+      "name": "m2_reference.mat",
+      "bytes": 96821,
+      "sha256": "6b9e5535619ec44894f6af119a50aa8c7370a77eec7a9b5348bc43ede6a078a3"
+    }
+  ],
+  "generated_by": "generate_m2_phase_axis_tests.m",
+  "matlab_version": "24.1.0.3303086 (R2024a) Update 9",
+  "matlab_release": "2024a",
+  "generated_at_asia_shanghai": "2026-11-24T10:20:34+08:00",
+  "manifest_hash_note": "The manifest does not hash itself because that would change its content."
+}

@@ -118,3 +118,58 @@ int dma_batch_transfer(struct dma *d,uint64_t src,uint64_t dst,unsigned bits,uns
  /* dma_transfer writes RS=1 idempotently, never toggles it or resets here. */
  return dma_transfer(d,src,dst,bits,timeout);
 }
+
+/* Additional adapters share the existing ordered MMIO and DMA cleanup path.
+ * Borrow /dev/mem's already locked fd; dma_close only unmaps these regions. */
+int mmio_map_shared(struct dma *r,int fd,uint64_t address,int writable){
+ memset(r,0,sizeof *r);r->fd=-1;
+ long page=sysconf(_SC_PAGESIZE);if(page<=0)return fail("MMIO page size");
+ uint64_t base=address&~((uint64_t)page-1);
+ r->len=(size_t)(address-base+0x100+(uint64_t)page-1)/(size_t)page*(size_t)page;
+ r->map=mmap(NULL,r->len,PROT_READ|(writable?PROT_WRITE:0),MAP_SHARED,fd,(off_t)base);
+ if(r->map==MAP_FAILED){r->map=NULL;return fail("MMIO map 0x%llx: %s",(unsigned long long)address,strerror(errno));}
+ r->regs=(volatile uint32_t *)((char*)r->map+address-base);return 0;
+}
+int mmio_no_driver(uint64_t address){
+ char text[32];snprintf(text,sizeof text,"%llx",(unsigned long long)address);
+ glob_t paths={0};int bound=0;
+ if(!glob("/sys/bus/platform/devices/*/driver",0,NULL,&paths))for(size_t i=0;i<paths.gl_pathc;i++)if(strcasestr(paths.gl_pathv[i],text)){logmsg("MMIO driver bound: %s\n",paths.gl_pathv[i]);bound=1;}
+ globfree(&paths);return bound?fail("MMIO region already has a kernel driver"):0;
+}
+static int packet_ready(struct dma *d,unsigned ch){
+ uint32_t s=dr(d,ch+4),c=dr(d,ch);
+ if((s&(ERR_MASK|8))||!((s&1)?!(c&1):(s&2)&&(c&1)))
+  return fail("DMA packet channel not quiescent ch=0x%x CR=%08x SR=%08x",ch,c,s);
+ return 0;
+}
+static int packet_submit(struct dma *d,unsigned ch,uint64_t address,unsigned bits,unsigned bytes,unsigned timeout){
+ dw(d,ch,1);if(waitbits(d,ch+4,1,0,timeout,1))return -1;
+ if(dr(d,ch+4)&ERR_MASK)return fail("DMA packet start error");
+ dw(d,ch+0x18,(uint32_t)address);if(bits>32)dw(d,ch+0x1c,address>>32);
+ if(stopped)return fail("DMA packet interrupted before length");
+ dw(d,ch+0x28,bytes);return 0;
+}
+int dma_packet(struct dma *d,uint64_t src,uint64_t dst,unsigned bits,unsigned bytes,unsigned timeout,int receive){
+ if(stopped||!bytes||(bytes&3)||bytes>16384||bits<32||bits>64||src%4||(receive&&dst%4))return fail("invalid/interrupted M2 DMA packet");
+ if(src>UINT64_MAX-(bytes-1)||(receive&&dst>UINT64_MAX-(bytes-1))||
+    (bits<64&&(src+bytes-1>=(1ULL<<bits)||(receive&&dst+bytes-1>=(1ULL<<bits)))))return fail("M2 DMA address exceeds address width");
+ if(packet_ready(d,0)||packet_ready(d,0x30))return -1;
+ if(!receive&&(!(dr(d,0x34)&1)||(dr(d,0x30)&1)))return fail("coefficient load requires S2MM halted");
+ dw(d,4,IOC);if(receive)dw(d,0x34,IOC);
+ if((dr(d,4)|(receive?dr(d,0x34):0))&(IOC|ERR_MASK))return fail("M2 DMA IOC clear failed");
+ if(receive&&packet_submit(d,0x30,dst,bits,bytes,timeout))return -1;
+ if(packet_submit(d,0,src,bits,bytes,timeout))return -1;
+ uint64_t end=now_ms()+timeout;
+ do{
+  uint32_t a=dr(d,4),b=dr(d,0x34);
+  if((a|b)&ERR_MASK)return fail("M2 DMA error MM2S=%08x S2MM=%08x",a,b);
+  if((a&1)||(receive&&(b&1)))return fail("M2 DMA unexpectedly halted");
+  if((a&(IOC|2))==(IOC|2)&&(!receive||(b&(IOC|2))==(IOC|2))){
+   if(receive&&dr(d,0x58)!=bytes)return fail("M2 received length %u != %u",dr(d,0x58),bytes);
+   return 0;
+  }
+  if(stopped)return fail("M2 DMA interrupted");
+  usleep(100);
+ }while(now_ms()<end);
+ return fail("M2 DMA %s timeout (%u bytes): inspect TLAST/TKEEP/busy/Switch",receive?"duplex":"MM2S-only",bytes);
+}

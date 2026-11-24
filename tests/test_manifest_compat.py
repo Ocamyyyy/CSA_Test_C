@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -37,6 +38,12 @@ def test_contract(path):
 
 files=[p for p in (ROOT/'references').rglob('*') if p.is_file()]
 before={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+batch_sources=[ROOT/f'references/vectors/batch_{n}' for n in [2,16,64]]
+if not all((source/'batch_manifest.json').is_file() and (source/'fft_batch_input.bin').is_file()
+           for source in batch_sources):
+    print('Manifest compatibility external-snapshot tests SKIPPED: references/vectors/batch_{2,16,64} are not present')
+    print('Batch parser tests and 70 synthetic Batch orchestration/error-path tests remain active')
+    sys.exit(0)
 for n in [2,16,64]:
     source=ROOT/f'references/vectors/batch_{n}'
     original=json.loads((source/'batch_manifest.json').read_text())
@@ -49,11 +56,16 @@ for n in [2,16,64]:
     with tempfile.TemporaryDirectory() as td:
         d=Path(td);cp=d/'c.json';mp=d/'m.json';c=test_contract(cp)
         # Original bytes are legal JSON but dataset ID is NOT hardware identity.
-        validate(cp,source/'batch_manifest.json',source/'fft_batch_input.bin',n,False,'contract_id must identify hardware')
+        validate(cp,source/'batch_manifest.json',source/'fft_batch_input.bin',n,original['contract_id']==c['contract_id'],
+                 'hardware not accessed' if original['contract_id']==c['contract_id'] else 'contract_id must identify hardware')
         fixed=copy.deepcopy(original)
-        fixed['dataset_id']=fixed['contract_id'];fixed['contract_id']=c['contract_id']
+        fixed['dataset_id']=original.get('dataset_id',original['contract_id']);fixed['contract_id']=c['contract_id']
+        # Also retain the original mis-bound-ID negative case when an operator
+        # has imported the corrected Windows metadata into references.
+        misbound=copy.deepcopy(fixed);misbound['contract_id']=fixed['dataset_id'];mp.write_text(json.dumps(misbound))
+        validate(cp,mp,source/'fft_batch_input.bin',n,False,'contract_id must identify hardware')
         assert {k:v for k,v in fixed.items() if k not in ('contract_id','dataset_id')}=={
-            k:v for k,v in original.items() if k!='contract_id'}
+            k:v for k,v in original.items() if k not in ('contract_id','dataset_id')}
         mp.write_text(json.dumps(fixed,indent=2))
         p=validate(cp,mp,source/'fft_batch_input.bin',n,True,'hardware not accessed')
         assert fixed['dataset_id'] in p.stdout

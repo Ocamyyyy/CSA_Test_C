@@ -9,7 +9,10 @@
 #define DMA_BASE 0x40400000ULL
 #define ERR_MASK 0x4770u
 #define IOC 0x1000u
-struct pair { char key[64], value[512]; int type; };
+/* Compound Batch/M2 metadata is retained in compact form.  The 2 KiB value
+ * bound accommodates the audited MATLAB M2 source object while remaining
+ * deterministic and well below the 32 KiB document limit. */
+struct pair { char key[64], value[2048]; int type; };
 struct json { struct pair p[64]; unsigned n; };
 struct contract {
  unsigned mode, btt, addr_bits, align, m0, m1, req, done, setup;
@@ -42,6 +45,8 @@ int parse_batch_json(const char *, struct json *);
 int load_batch_json(const char *, struct json *);
 int batch_json_columns(const struct json *, unsigned);
 int batch_json_real(const struct json *, const char *, double *);
+int batch_json_object(const struct json *, const char *, struct json *);
+int batch_json_file(const struct json *, const char *, uint64_t *, char [65]);
 int load_json(const char *, struct json *);
 int validate_contract(const struct json *, const struct json *, unsigned, struct contract *);
 int layout(uint64_t, uint64_t, uint64_t, unsigned, unsigned, unsigned, uint64_t *);

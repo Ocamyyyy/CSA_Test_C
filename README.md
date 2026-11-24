@@ -1,3 +1,11 @@
+M2新增入口、独立契约、系数装载/处理协议和板端命令见[docs/m2_board_test.md](docs/m2_board_test.md)。
+实际工作目录仍为FFTTest_UserSpace；M2仅完成软件实现与验证，板级测试NOT_RUN，FFT功能保留。
+`--validate-m2`已兼容MATLAB `m2-phase-axis-test-v1`嵌套Manifest；7组`references/m2_phase_axis`
+向量的长度、Manifest内SHA-256和离线CLI校验已通过。该结果不等于FPGA执行或数值回读通过。
+
+RADARSAT-1 FFT→M2 DDR中转串联命令、失败边界和人工板测步骤见
+[docs/fft_m2_chain.md](docs/fft_m2_chain.md)。串联板测仍为`NOT_RUN`。
+
 # FFTTest 用户态 DMA–FFT–DMA 测试
 
 2048点、每点32-bit复数、输入/输出各8192 Byte。程序只搬运原始文件，不执行FFT或变换I/Q。

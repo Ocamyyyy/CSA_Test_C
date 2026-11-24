@@ -48,3 +48,14 @@ void ubuf_read_frame(unsigned char *dst,const void *src){
  const volatile uint32_t *s=src;
  for(unsigned i=0;i<FRAME/4;i++){uint32_t word=s[i];memcpy(dst+4*i,&word,4);}
 }
+
+/* Variable packets for M2, using the same aligned scalar-access policy. */
+void ubuf_write_bytes(void *dst,const unsigned char *src,size_t bytes){
+ volatile uint32_t *d=dst;
+ for(size_t i=0;i<bytes/4;i++){uint32_t word;memcpy(&word,src+i*4,4);d[i]=word;}
+}
+void ubuf_zero_bytes(void *dst,size_t bytes){volatile uint32_t *d=dst;for(size_t i=0;i<bytes/4;i++)d[i]=0;}
+void ubuf_read_bytes(unsigned char *dst,const void *src,size_t bytes){
+ const volatile uint32_t *s=src;
+ for(size_t i=0;i<bytes/4;i++){uint32_t word=s[i];memcpy(dst+i*4,&word,4);}
+}

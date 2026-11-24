@@ -1,4 +1,6 @@
 #include "ffttest.h"
+#include "m2.h"
+#include "fft_m2.h"
 #include <getopt.h>
 #include <sys/utsname.h>
 #include <sys/stat.h>
@@ -13,16 +15,25 @@ static void help(void){
  puts("FFTTest v1 - 2048 point PS-DDR / DMA / FFT / DMA test\n"
  "  --inspect                 read-only board audit (no GPIO request/MMIO writes)\n"
  "  --run                     explicit single hardware transfer; reviewed contract required\n"
+ "  --inspect-m2              inspect DMA, Switch routes and M2 GPIO/status\n"
+ "  --validate-m2             offline M2 input/coefficient/contract validation\n"
+ "  --run-m2                  load Q1.15 coefficients then process one M2 vector\n"
+ "  --validate-fft-m2         offline RADARSAT-1 FFT-to-M2 chain validation\n"
+ "  --run-fft-m2              FFT to saved raw file, then M2 using that exact file\n"
+ "  --coeff PATH              M2 coefficient BIN (default m2_coeff.bin)\n"
+ "  --samples N               M2 samples: 1..4096\n"
+ "  --fft-output PATH         chain intermediate output (default fft_actual.bin)\n"
+ "  --m2-contract PATH        chain M2 contract (default m2_hardware_contract.json)\n"
  "  --run-batch               configure once, sequential 2/16/64 frame transfers\n"
  "  --frames N                Batch frame count: 2, 16 or 64\n"
  "  --stats PATH              Batch JSONL statistics, new file required\n"
  "  --validate                offline contract/manifest/input checks, no devices\n"
  "  --input PATH              raw binary (default fft_input.bin), single: 8192 bytes; Batch: frames * 8192\n"
- "  --output PATH             raw result (default fft_actual.bin), must not exist\n"
- "  --manifest PATH           default fft_test_manifest.json\n"
- "  --contract PATH           default hardware_contract.json\n"
+ "  --output PATH             raw result; chain default fft_m2_actual.bin; must not exist\n"
+ "  --manifest PATH           action-specific manifest (chain: fft_m2_manifest.json)\n"
+ "  --contract PATH           FFT hardware contract (default hardware_contract.json)\n"
  "  --mode 2048               required for run/validate; does not select GPIO code\n"
- "  --confirm-fresh-reset     run/run-batch: operator confirms FFT/controller reset and no prior request\n"
+ "  --confirm-fresh-reset     run/run-batch/run-fft-m2: truthful FFT reset declaration\n"
  "  --timeout-ms N            1..600000, default 2000 per wait phase\n"
  "  --log PATH                save log to new file (never overwrite existing)\n"
  "  --help\n"
@@ -33,36 +44,102 @@ static int uintarg(const char *s,unsigned *v){
  char *end;errno=0;unsigned long n=strtoul(s,&end,10);if(errno||!*s||*end||*s=='-'||n>600000)return -1;*v=n;return 0;
 }
 int main(int argc,char **argv){
- enum { INSPECT=1,RUN,VALIDATE,BATCH };int action=0,fresh_reset=0,frames_set=0;unsigned mode=0,timeout=2000,frames=0;
- const char *stats=NULL;
+ enum { INSPECT=1,RUN,VALIDATE,BATCH,M2_INSPECT,M2_VALIDATE,M2_RUN,CHAIN_VALIDATE,CHAIN_RUN };int action=0,fresh_reset=0,frames_set=0;unsigned mode=0,timeout=2000,frames=0;
+ const char *stats=NULL,*coeff="m2_coeff.bin",*fft_output="fft_actual.bin",*m2_contract="m2_hardware_contract.json";unsigned samples=0;
+ int input_set=0,output_set=0,manifest_set=0,contract_set=0,coeff_set=0,samples_set=0,mode_set=0,fft_output_set=0,m2_contract_set=0;
  const char *input="fft_input.bin",*output="fft_actual.bin",*manifest="fft_test_manifest.json",*contract="hardware_contract.json",*logpath=NULL;
  static const struct option opts[]={
- {"run-batch",0,0,'B'},{"frames",1,0,'N'},{"stats",1,0,'S'},{"inspect",0,0,'i'},{"run",0,0,'r'},{"validate",0,0,'v'},{"help",0,0,'h'},
+ {"inspect-m2",0,0,1000},{"validate-m2",0,0,1001},{"run-m2",0,0,1002},
+ {"coeff",1,0,1003},{"samples",1,0,1004},{"validate-fft-m2",0,0,1005},{"run-fft-m2",0,0,1006},
+ {"fft-output",1,0,1007},{"m2-contract",1,0,1008},{"run-batch",0,0,'B'},{"frames",1,0,'N'},{"stats",1,0,'S'},{"inspect",0,0,'i'},{"run",0,0,'r'},{"validate",0,0,'v'},{"help",0,0,'h'},
  {"input",1,0,'I'},{"output",1,0,'O'},{"manifest",1,0,'M'},{"contract",1,0,'C'},
  {"confirm-fresh-reset",0,0,'F'},{"mode",1,0,'m'},{"timeout-ms",1,0,'t'},{"log",1,0,'l'},{0,0,0,0}};
  int opt;while((opt=getopt_long(argc,argv,"",opts,NULL))!=-1){
   switch(opt){
+   case 1000:case 1001:case 1002:
+    if(action)return fail("choose exactly one action"),2;
+    action=opt==1000?M2_INSPECT:opt==1001?M2_VALIDATE:M2_RUN;break;
+   case 1003:coeff_set=1;coeff=optarg;break;
+   case 1004:samples_set=1;if(uintarg(optarg,&samples))return fail("invalid M2 samples"),2;break;
+   case 1005:case 1006:
+    if(action)return fail("choose exactly one action"),2;
+    action=opt==1005?CHAIN_VALIDATE:CHAIN_RUN;break;
+   case 1007:fft_output_set=1;fft_output=optarg;break;
+   case 1008:m2_contract_set=1;m2_contract=optarg;break;
    case 'B':case 'i':case 'r':case 'v':if(action)return fail("choose exactly one action"),2;action=opt=='B'?BATCH:opt=='i'?INSPECT:opt=='r'?RUN:VALIDATE;break;
-   case 'h':help();return 0;case 'I':input=optarg;break;case 'O':output=optarg;break;
+   case 'h':help();return 0;case 'I':input_set=1;input=optarg;break;case 'O':output_set=1;output=optarg;break;
    case 'F':fresh_reset=1;break;
    case 'N':frames_set=1;if(uintarg(optarg,&frames))return fail("invalid Batch frames"),2;break;
    case 'S':stats=optarg;break;
-   case 'M':manifest=optarg;break;case 'C':contract=optarg;break;case 'l':logpath=optarg;break;
-   case 'm':if(uintarg(optarg,&mode))return fail("invalid mode"),2;break;
+   case 'M':manifest_set=1;manifest=optarg;break;case 'C':contract_set=1;contract=optarg;break;case 'l':logpath=optarg;break;
+   case 'm':mode_set=1;if(uintarg(optarg,&mode))return fail("invalid mode"),2;break;
    case 't':if(uintarg(optarg,&timeout)||!timeout)return fail("invalid timeout"),2;break;
    default:return 2;
   }
  }
  if(!action||optind!=argc){help();return 2;}
+ int is_m2=action>=M2_INSPECT&&action<=M2_RUN,is_chain=action==CHAIN_VALIDATE||action==CHAIN_RUN;
+ if(!is_m2&&!is_chain&&(coeff_set||samples_set))return fail("--coeff/--samples require an M2 action"),2;
+ if(is_chain&&samples_set)return fail("FFT-M2 chain is fixed at 2048 samples; do not use --samples"),2;
+ if(!is_chain&&(fft_output_set||m2_contract_set))return fail("--fft-output/--m2-contract require an FFT-M2 chain action"),2;
+ if(is_m2){
+  if(mode_set||fresh_reset)return fail("M2 does not use --mode or --confirm-fresh-reset"),2;
+  if(!input_set)input="m2_input.bin";
+  if(!output_set)output="m2_actual.bin";
+  if(!manifest_set)manifest="m2_manifest.json";
+  if(!contract_set)contract="m2_hardware_contract.json";
+ }
+ if(is_chain){
+  if(mode_set)return fail("FFT-M2 chain is fixed at mode 2048; do not use --mode"),2;
+  if(action==CHAIN_VALIDATE&&fresh_reset)return fail("--confirm-fresh-reset is only for --run-fft-m2"),2;
+  if(!input_set)input="fft_input.bin";
+  if(!output_set)output="fft_m2_actual.bin";
+  if(!manifest_set)manifest="fft_m2_manifest.json";
+  if(!contract_set)contract="hardware_contract.json";
+ }
  if(action!=BATCH&&(frames_set||stats))return fail("--frames/--stats require --run-batch"),2;
  if(logpath){int fd=open(logpath,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0644);if(fd<0)return fail("new log %s: %s",logpath,strerror(errno)),2;
  logfile=fdopen(fd,"w");if(!logfile){close(fd);return 2;}}
  struct sigaction sa={0};sa.sa_handler=onsignal;sigaction(SIGINT,&sa,NULL);sigaction(SIGTERM,&sa,NULL);
  struct utsname un;if(!uname(&un))logmsg("FFTTest v1 platform=%s %s %s %s\n",un.sysname,un.release,un.machine,un.nodename);
- logmsg("action=%s DMA=0x%llx GPIO=0x41200000 timeout=%u ms per phase\n",action==BATCH?"run-batch":action==INSPECT?"inspect":action==RUN?"run":"validate",(unsigned long long)DMA_BASE,timeout);
+ logmsg("action=%s DMA=0x%llx GPIO=0x41200000 timeout=%u ms per phase\n",action==CHAIN_VALIDATE?"validate-fft-m2":action==CHAIN_RUN?"run-fft-m2":action==M2_INSPECT?"inspect-m2":action==M2_VALIDATE?"validate-m2":action==M2_RUN?"run-m2":action==BATCH?"run-batch":action==INSPECT?"inspect":action==RUN?"run":"validate",(unsigned long long)DMA_BASE,timeout);
  logmsg("input=%s output=%s manifest=%s contract=%s log=%s\n",input,output,manifest,contract,logpath?logpath:"stdout");
  int rc=1,dmapped=0,gused=0,uopened=0,device_owned=0,dma_touched=0,safe=1;
  struct dma d={.fd=-1};struct ubuf u={.fd=-1};struct gpio g={.out=-1,.in=-1};uint64_t off=0;
+ if(is_chain){
+  logmsg("FFT-M2 chain: fft_output=%s final_output=%s coeff=%s m2_contract=%s\n",fft_output,output,coeff,m2_contract);
+  struct fft_m2_options options={.input=input,.coeff=coeff,.fft_output=fft_output,.output=output,
+   .manifest=manifest,.fft_contract=contract,.m2_contract=m2_contract,.timeout=timeout,
+   .fresh_reset=fresh_reset,.require_deployment=action==CHAIN_RUN};
+  struct contract fc,mc;int input_fd=-1,coeff_fd=-1;
+  if(fft_m2_validate(&options,&fc,&mc,&input_fd,&coeff_fd))goto cleanup;
+  if(action==CHAIN_VALIDATE)rc=0;
+  else {
+#ifndef __aarch64__
+   fail("hardware execution requires native AArch64 build/platform");
+#else
+   rc=fft_m2_execute(&options,&fc,&mc,input_fd,coeff_fd);
+#endif
+  }
+  close(input_fd);close(coeff_fd);goto cleanup;
+ }
+ if(is_m2){
+  logmsg("M2 GPIO=0x41210000 input_switch=0x43c00000 output_switch=0x43c10000 samples=%u coeff=%s\n",samples,coeff);
+  if(action==M2_INSPECT){rc=m2_inspect();goto cleanup;}
+  struct m2_options options={.input=input,.coeff=coeff,.output=output,.manifest=manifest,
+   .contract=contract,.samples=samples,.timeout=timeout,.require_deployment=action==M2_RUN};
+  struct contract mc;int input_fd=-1,coeff_fd=-1;
+  if(m2_validate(&options,&mc,&input_fd,&coeff_fd))goto cleanup;
+  if(action==M2_VALIDATE)rc=0;
+  else {
+#ifndef __aarch64__
+   fail("hardware execution requires native AArch64 build/platform");
+#else
+   rc=m2_execute(&options,&mc,input_fd,coeff_fd);
+#endif
+  }
+  close(input_fd);close(coeff_fd);goto cleanup;
+ }
  if(action==BATCH){
   struct batch_options options={input,output,contract,manifest,stats,frames,mode,timeout,fresh_reset};
   struct contract bc;int input_fd=-1;

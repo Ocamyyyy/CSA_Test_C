@@ -145,7 +145,7 @@ int load_batch_json(const char *path,struct json *j){
  char text[32769];FILE *f=fopen(path,"rb");if(!f)return fail("open Batch manifest %s: %s",path,strerror(errno));
  size_t n=fread(text,1,sizeof text,f);int bad=ferror(f);fclose(f);
  if(bad||n>=sizeof text||memchr(text,0,n))return fail("invalid/oversized Batch JSON %s",path);
- text[n]=0;if(parse_batch_json(text,j))return fail("invalid Batch JSON %s (standard JSON required; limits: 32KiB, 64 keys, 511 bytes/value, depth 16)",path);
+ text[n]=0;if(parse_batch_json(text,j))return fail("invalid Batch JSON %s (standard JSON required; limits: 32KiB, 64 keys, 2047 bytes/value, depth 16)",path);
  return 0;
 }
 static const struct pair *field(const struct json *j,const char *key){
@@ -155,6 +155,29 @@ static const struct pair *field(const struct json *j,const char *key){
 int batch_json_real(const struct json *j,const char *key,double *v){
  const struct pair *p=field(j,key);if(!p||(p->type!=3&&p->type!=4))return -1;
  char *end;errno=0;double d=strtod(p->value,&end);if(errno||*end||!isfinite(d))return -1;*v=d;return 0;
+}
+int batch_json_object(const struct json *j,const char *key,struct json *out){
+ const struct pair *p=field(j,key);
+ return !p||p->type!=7||parse_batch_json(p->value,out)?-1:0;
+}
+static int sha256_text(const char *s){
+ if(strlen(s)!=64)return -1;
+ for(unsigned i=0;i<64;i++)if(!((s[i]>='0'&&s[i]<='9')||(s[i]>='a'&&s[i]<='f')))return -1;
+ return 0;
+}
+int batch_json_file(const struct json *j,const char *name,uint64_t *bytes,char sha[65]){
+ const struct pair *p=field(j,"files");if(!p||p->type!=5)return -1;
+ struct reader r={p->value};if(*r.p++!='[')return -1;space(&r);unsigned found=0;
+ if(*r.p==']')return -1;
+ for(;;){
+  struct json item;if(object(&r,1,&item))return -1;
+  const struct pair *n=field(&item,"name"),*h=field(&item,"sha256");uint64_t z;
+  if(!n||n->type!=1||!h||h->type!=1||sha256_text(h->value)||jnum(&item,"bytes",&z))return -1;
+  if(!strcmp(n->value,name)){if(found++)return -1;*bytes=z;strcpy(sha,h->value);}
+  space(&r);if(*r.p==']'){r.p++;space(&r);return !*r.p&&found==1?0:-1;}
+  if(*r.p!=',')return -1;
+  r.p++;space(&r);
+ }
 }
 int batch_json_columns(const struct json *j,unsigned frames){
  const struct pair *p=field(j,"selected_columns");if(!p)return 0;

@@ -7,7 +7,10 @@ import struct
 import re
 import xml.etree.ElementTree as ET
 
-root = Path(__file__).resolve().parents[1] / 'references'
+reference_root = Path(__file__).resolve().parents[1] / 'references'
+# The immutable FFT snapshot may coexist with other accelerator snapshots.
+# Keep compatibility with the original flat layout and the namespaced layout.
+root = reference_root / 'fft' if (reference_root / 'fft' / 'SHA256SUMS.txt').is_file() else reference_root
 checks = 0
 covered=set()
 for line in (root/'SHA256SUMS.txt').read_text().splitlines():

@@ -1,0 +1,141 @@
+{
+  "schema": "radarsat1-fft-m2-chain-v1",
+  "test_id": "radarsat1_fft_m2_s3_column2017",
+  "status": "REFERENCE_READY_BOARD_NOT_RUN",
+  "sample_count": 2048,
+  "selected_column_matlab_1_based": 2017,
+  "source": {
+    "repository": "D:\\Workspace\\SAR-Synthetic-Aperture-Radar",
+    "dataset_file": "data_1.mat",
+    "dataset_variable": "data_1",
+    "source_dimensions": [
+      1536,
+      2048
+    ],
+    "processing_dimensions": [
+      2048,
+      3000
+    ],
+    "prior_fft_case": {
+      "available": true,
+      "directory": "D:\\Workspace\\SARTest\\FFTValidation\\radarsat1",
+      "fft_input_sha256": "f5b9a0d8d987ce6eec8deb29560061dc8a4a7b747c1739893850c78b2ec595b4",
+      "is_raw_input_data_column": true,
+      "is_csa_s_rd_column": false,
+      "raw_vs_csa_s_rd_relative_l2": 1.4114549717133975,
+      "raw_fft_vs_csa_S_RD_relative_l2": 1.4114549717133975,
+      "selected_column": 2017,
+      "conclusion": "Prior board-verified input is input_data(:,2017), not CSA stages.s_rd(:,2017); it cannot be paired directly with phase1."
+    }
+  },
+  "stage_mapping": {
+    "name": "radarsat1_fft_m2_s3_column2017",
+    "selected_column_matlab_1_based": 2017,
+    "fft_input_stage": "stages.s_rd(:,2017)",
+    "fft_output_stage": "stages.S_RD(:,2017)",
+    "m2_coefficient_stage": "stages.phase1(:,2017)",
+    "m2_output_stage": "stages.S_RD_1(:,2017)",
+    "input_saturation_count": 0,
+    "coefficient_saturation_count": 397,
+    "frequency_order": "natural FFT order, no fftshift"
+  },
+  "frequency_coordinates": {
+    "name": "stages.fa",
+    "order": "natural FFT bin order",
+    "fftshift_between_fft_and_m2": false,
+    "first_hz": -6900,
+    "last_hz": -6900.6137597656252,
+    "minimum_hz": -7528.49,
+    "maximum_hz": -6272.1237597656254,
+    "spacing_hz": 0.613759765625,
+    "alignment_max_error_hz": 0
+  },
+  "fft": {
+    "fft_length": 2048,
+    "mode_sel_binary": "01",
+    "config_tdata_hex": "0x0D550B",
+    "direction": "forward FFT",
+    "scale_schedule_hex": "0x6AA",
+    "total_right_shift_bits": 11,
+    "output_scale": 0.00048828125,
+    "output_order": "natural",
+    "rounding": "XFFT convergent rounding",
+    "input_component_bits": 16,
+    "output_component_bits": 16,
+    "word_bits": 32,
+    "word_layout": "[31:16]=signed int16 Q, [15:0]=signed int16 I",
+    "file_byte_order": "little-endian uint32",
+    "frame_bytes": 8192
+  },
+  "m2": {
+    "vector_len": 2048,
+    "protocol": "load N coefficients, then process N FFT output samples",
+    "data_format": "signed int16 I/Q",
+    "coefficient_format": "signed Q1.15 I/Q",
+    "arithmetic": "four signed 16x16 multiplies, signed 33-bit accumulate, divide by 2^15, round-to-nearest ties-to-even, signed int16 saturation",
+    "final_bit_exact_rule": "Compute m2_fixed_reference from the signed int16 samples read from board fft_actual.bin; never substitute S_RD_double or fft_reference for the actual M2 input."
+  },
+  "file_format": {
+    "byte_order": "little-endian",
+    "word_bits": 32,
+    "i_field": "[15:0] signed int16",
+    "q_field": "[31:16] signed int16",
+    "frame_bytes": 8192
+  },
+  "quantization": {
+    "fft_input_scale_factor": 131.07256597519191,
+    "fft_input_rule": "existing FFTValidation rule: 90% component peak, MATLAB round, no saturation",
+    "m2_coefficient_rule": "Q1.15 round-to-nearest ties-to-even and int16 saturation",
+    "input_saturation_count": 0,
+    "coefficient_saturation_count": 397
+  },
+  "analysis": {
+    "input_quantization_relative_l2": 3.0807286801441894E-5,
+    "fft_physical_relative_l2": 3.0807286801444273E-5,
+    "coefficient_quantization_relative_l2": 1.6447518520593538E-5,
+    "preboard_cascade_relative_l2_not_bit_exact": 3.5805785195678916E-5
+  },
+  "validation": {
+    "fft_threshold_source": "FFTValidation/compare_fpga_output.m, fixed before board results",
+    "fft_relative_l2_max": 0.02,
+    "fft_rmse_lsb_max": 4,
+    "fft_max_absolute_error_lsb_max": 24,
+    "fft_snr_db_min": 34,
+    "fft_correlation_min": 0.999,
+    "m2_requirement": "bit-exact against reference recomputed from fft_actual.bin",
+    "board_status": "NOT_RUN",
+    "generator_binary_readback_exact": true,
+    "integer_model_crosscheck": true
+  },
+  "expected_board_outputs": [
+    "fft_actual.bin",
+    "fft_m2_actual.bin"
+  ],
+  "files": [
+    {
+      "name": "fft_input.bin",
+      "bytes": 8192,
+      "sha256": "1bda8253ca29e9f6b9174aa3cede778d70bb00ebf3c7784da787ef175f974bec"
+    },
+    {
+      "name": "m2_coeff.bin",
+      "bytes": 8192,
+      "sha256": "495e035da23f6e5e4c975aea5656c2269425e90c44f8502d36e84981cc20ca1a"
+    },
+    {
+      "name": "fft_reference.mat",
+      "bytes": 255575,
+      "sha256": "1df31da45601342d2106e63f8682a30898379ab328ab311361a5b5fa42d868e8"
+    },
+    {
+      "name": "fft_m2_reference.mat",
+      "bytes": 294182,
+      "sha256": "fb8c48533aff4f04c2d24a1d2f9845ca05dc8fd9d3779ea20f12f6c8342f5f0f"
+    }
+  ],
+  "generated_by": "generate_fft_m2_chain_reference.m",
+  "matlab_version": "24.1.0.3303086 (R2024a) Update 9",
+  "matlab_release": "2024a",
+  "generated_at_asia_shanghai": "2026-11-24T11:26:59+08:00",
+  "self_hash_note": "The JSON manifest does not hash itself."
+}

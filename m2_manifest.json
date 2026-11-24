@@ -1,0 +1,17 @@
+{
+  "contract_id": "m2-phase-q15-rtl-v1",
+  "byte_order": "little",
+  "encoding": "signed-int16",
+  "iq_order": "I-low",
+  "coeff_format": "Q1.15",
+  "arithmetic": "complex-mul-s33-rshift15-rne-sat16",
+  "tlast": "last-sample",
+  "tkeep": 15,
+  "bytes_per_sample": 4,
+  "schema": "ffttest-m2-manifest-v1",
+  "samples": 2048,
+  "input_bytes": 8192,
+  "coeff_bytes": 8192,
+  "output_bytes": 8192,
+  "provenance": "Metadata template only; MATLAB/operator must provide matching raw input and Q1.15 coefficient files"
+}
