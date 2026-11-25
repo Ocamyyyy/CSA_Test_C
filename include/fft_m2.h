@@ -8,6 +8,7 @@ struct fft_m2_options {
 };
 int fft_m2_validate(const struct fft_m2_options *,struct contract *,struct contract *,int *,int *);
 int sha256_fd(int,char [65]);
+int fft_packet_stage(const char *,unsigned,unsigned,const struct contract *,int);
 int fft_chain_stage(const struct fft_m2_options *,const struct contract *,int);
 int fft_m2_execute(const struct fft_m2_options *,const struct contract *,const struct contract *,int,int);
 #endif

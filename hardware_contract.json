@@ -13,7 +13,7 @@
   "quantization": "XFFT convergent_rounding; scaled signed16; no external conversion; OVFLO disabled",
   "output_order": "natural",
   "config_word": "0x0D550B",
-  "handshake": "rising-edge-sticky-done-initial-low",
+  "handshake": "request-high-done-low-release-done-high",
   "tlast": "frame-2048",
   "sync_semantics": "upstream-4.5.3",
   "exclusive": "UNVERIFIED",
@@ -33,5 +33,5 @@
   "static_hardware_status": "VERIFIED",
   "target_gpio_mapping": "UNVERIFIED",
   "deployment_identity": "UNVERIFIED",
-  "reset_precondition": "fresh global reset; pending=0; no previous request; confirm via --confirm-fresh-reset"
+  "reset_precondition": "none between configurations; software must observe done=0 while req=1, then done=1 after req=0"
 }

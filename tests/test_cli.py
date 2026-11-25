@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory() as td:
              evidence='SYNTHETIC-NOT-HARDWARE', nfft=2048, bytes_per_sample=4,
              byte_order='little', iq_order='I-low', encoding='signed-int16',
              direction='forward', scaling='test-only', quantization='test-only',
-             output_order='natural', config_word='test-only', handshake='rising-edge-sticky-done-initial-low',
+             output_order='natural', config_word='test-only', handshake='request-high-done-low-release-done-high',
              tlast='frame-2048', sync_semantics='upstream-4.5.3', exclusive=True,
              dma_address_identity=True, micro_dma=False, target_gpio_mapping='VERIFIED', deployment_identity='VERIFIED', mode_sel=2, btt_bits=14,
              address_bits=32, alignment=4, dma_window_base=0, dma_window_size=1073741824, mode0_line=0, mode1_line=1,
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as td:
     cp,mp,ip=d/'c.json',d/'m.json',d/'i.bin'
     cp.write_text(json.dumps(c));mp.write_text(json.dumps(m));ip.write_bytes(bytes(8192))
     base=['--contract',str(cp),'--manifest',str(mp),'--input',str(ip),'--mode','2048']
-    run(['--run']+base,False,'--confirm-fresh-reset')
+    run(['--run']+base,False,'native AArch64')
     old=c['dma_window_size'];c['dma_window_size']=0;cp.write_text(json.dumps(c))
     run(['--validate']+base,False,'DMA address window')
     c['dma_window_size']=old
@@ -79,7 +79,7 @@ print(f'CLI total PASSED ({count} cases including stage-2 gates)')
 
 with tempfile.TemporaryDirectory() as td:
     d=pathlib.Path(td);cp,mp,ip=d/'c.json',d/'m.json',d/'i.bin'
-    c['handshake']='rising-edge-sticky-done-initial-low'
+    c['handshake']='request-high-done-low-release-done-high'
     mp.write_text(json.dumps(m));ip.write_bytes(bytes(8192))
     base=['--validate','--contract',str(cp),'--manifest',str(mp),'--input',str(ip),'--mode','2048']
     for key in ['target_gpio_mapping','deployment_identity']:

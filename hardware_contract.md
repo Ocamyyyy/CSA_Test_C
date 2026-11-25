@@ -188,3 +188,10 @@ flock在close后释放，其他进程仍需遵守隔离告警；该程序不能�
 - [配置先于数据](https://docs.amd.com/r/en-US/pg109-xfft/Applying-a-New-Configuration-While-Idle)
 - [XFFT输出TLAST定义](https://docs.amd.com/r/en-US/pg109-xfft/Pinout?contentId=Oo0GV0CRIzVYlj~SvCrJTg)
 - [u-dma-buf 4.5.3原始源码](https://raw.githubusercontent.com/ikwzm/udmabuf/v4.5.3/u-dma-buf.c)
+# 新版配置握手覆盖说明（2026-11-25）
+
+本文件后文记录的是仓库中旧`references/fft`快照的审计历史。当前软件目标采用后续已提供并核实的新版
+`fft_config_ctrl.v`协议：CPU保持`config_req=1`直至观察`config_done=0`，再释放请求并等待新的
+`config_done=1`。因此后文“旧done高必须全局复位”的结论不再适用于新版部署。软件不会据此自动认定板端
+bitstream身份；仍须在`hardware_contract.json`/`fft_modes_hardware_contract.json`中记录当前部署证据并通过门禁。
+

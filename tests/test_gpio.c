@@ -4,19 +4,19 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-/* Model the externally observable RTL: done remains high when req is lowered.
- * A previous done high must be rejected, since its next low may last one cycle. */
-struct model { int done, req, pending, ready_after, reads, edges, writes, fail_read, fail_set, cancel; uint64_t us; };
+/* Model the reconfigurable RTL: req high clears done; after req is released,
+ * AXIS-config TREADY/acceptance eventually raises the new done. */
+struct model { int done, req, pending, ready_after, reads, edges, writes, fail_read, fail_set, fail_clear, cancel; uint64_t us; };
 static int outputs(void *ctx,unsigned mode,unsigned req){
  struct model *m=ctx;assert(mode==1);m->writes++;
  if(m->fail_set)return -1;
- if(req&&!m->req){m->edges++;m->done=0;m->pending=1;}
+ if(req&&!m->req){m->edges++;if(!m->fail_clear)m->done=0;m->pending=1;}
  m->req=req;return 0;
 }
 static int done(void *ctx){
  struct model *m=ctx;if(m->fail_read)return -1;
  if(m->cancel&&m->pending)stopped=1;
- if(m->pending&&++m->reads>=m->ready_after&&m->ready_after>=0){m->pending=0;m->done=1;}
+ if(m->pending&&!m->req&&++m->reads>=m->ready_after&&m->ready_after>=0){m->pending=0;m->done=1;}
  return m->done;
 }
 static uint64_t clock_ms(void *ctx){return ((struct model*)ctx)->us/1000;}
@@ -53,16 +53,17 @@ int main(void){
  mapping_test();
  struct contract c={.mode=1,.setup=1};
  struct model m={.ready_after=1};struct gpio g=make_gpio(&m);
- assert(!fft_configure(&g,&c,5));assert(m.edges==1&&m.done==1&&m.req==0);
- /* Second call cannot mistake previous done=1 for new completion. */
- assert(fft_configure(&g,&c,5));assert(m.edges==1&&m.req==0);
- struct model old={.done=1};g=make_gpio(&old);assert(fft_configure(&g,&c,5));assert(old.edges==0);
- struct model delayed={.ready_after=4};g=make_gpio(&delayed);assert(!fft_configure(&g,&c,10));assert(delayed.edges==1&&delayed.reads==4&&delayed.req==0);
- struct model stuck={.ready_after=-1};g=make_gpio(&stuck);assert(fft_configure(&g,&c,2));assert(stuck.edges==1&&stuck.req==0);
+ assert(!fft_configure(&g,&c,5));assert(m.edges==1&&m.done==1&&m.req==0&&g.configured);
+ /* A second request must clear the old high before accepting the new high. */
+ assert(!fft_configure(&g,&c,5));assert(m.edges==2&&m.done==1&&m.req==0);
+ struct model old={.done=1,.ready_after=1};g=make_gpio(&old);assert(!fft_configure(&g,&c,5));assert(old.edges==1&&old.done==1);
+ struct model delayed={.done=1,.ready_after=4};g=make_gpio(&delayed);assert(!fft_configure(&g,&c,10));assert(delayed.edges==1&&delayed.reads==4&&delayed.req==0);
+ struct model no_clear={.done=1,.ready_after=1,.fail_clear=1};g=make_gpio(&no_clear);assert(fft_configure(&g,&c,2));assert(no_clear.edges==1&&no_clear.req==0);
+ struct model stuck={.done=1,.ready_after=-1};g=make_gpio(&stuck);assert(fft_configure(&g,&c,2));assert(stuck.edges==1&&stuck.req==0);
  struct model readerr={.fail_read=1};g=make_gpio(&readerr);assert(fft_configure(&g,&c,2));assert(readerr.edges==0);
  struct model writeerr={.fail_set=1};g=make_gpio(&writeerr);assert(fft_configure(&g,&c,2));assert(writeerr.edges==0);
  struct model cancel={.ready_after=-1,.cancel=1};g=make_gpio(&cancel);assert(fft_configure(&g,&c,2));assert(cancel.req==0);stopped=0;
  struct model pre_cancel={0};g=make_gpio(&pre_cancel);stopped=1;assert(fft_configure(&g,&c,2));assert(pre_cancel.writes==0);stopped=0;
- puts("GPIO tests PASSED: initial-low edge, sticky completion, stale-high rejection, delayed ready, timeout, I/O errors, cancel");
+ puts("GPIO tests PASSED: reusable done 1->0->1 handshake, initial-low, TREADY delay, clear/high timeouts, I/O errors, cancel");
  return 0;
 }

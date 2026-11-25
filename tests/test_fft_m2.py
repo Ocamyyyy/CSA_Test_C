@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as td:
            coeff=corrupt if filename=='m2_coeff.bin' else REF/'m2_coeff.bin'),False,'SHA-256 differs')
  call(cli(REF/'fft_m2_manifest.json',REF/'fft_input.bin',final),False,'must be distinct')
 
-for fault in [None,'fresh-reset','fft-dma','fft-timeout','fft-status','fft-gpio','fft-switch-restore',
+for fault in [None,'fft-dma','fft-timeout','fft-status','fft-gpio','fft-switch-restore',
               'm2-dma','m2-timeout','m2-status','m2-gpio','m2-switch-restore']:
  with tempfile.TemporaryDirectory() as td:
   d=Path(td);cmd=MOCK+[str(REF/'fft_input.bin'),str(REF/'m2_coeff.bin'),str(d/'fft_actual.bin'),str(d/'fft_m2_actual.bin')]
@@ -59,5 +59,5 @@ for fault in [None,'fresh-reset','fft-dma','fft-timeout','fft-status','fft-gpio'
 
 call(CLI+['--run','--fft-output','x'],False)
 call(CLI+['--validate-fft-m2','--samples','2048'],False,'fixed at 2048')
-call(CLI+['--validate-fft-m2','--confirm-fresh-reset'],False,'only for --run-fft-m2')
+call(CLI+['--validate-fft-m2','--confirm-fresh-reset'],False,'not used by offline validation')
 print(f'FFT-M2 CHAIN SOFTWARE tests PASS ({count} cases; model only, no board/MMIO/DMA)')

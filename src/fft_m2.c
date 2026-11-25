@@ -22,7 +22,7 @@ static int fft_contract(const char *path,int deployment,struct contract *c){
   {"scaling","SCALE_SCH=0x6AA; total shift=11; gain=1/2048"},
   {"quantization","XFFT convergent_rounding; scaled signed16; no external conversion; OVFLO disabled"},
   {"output_order","natural"},{"config_word","0x0D550B"},
-  {"handshake","rising-edge-sticky-done-initial-low"},{"tlast","frame-2048"},
+  {"handshake","request-high-done-low-release-done-high"},{"tlast","frame-2048"},
   {"sync_semantics","upstream-4.5.3"}};
  for(unsigned i=0;i<sizeof fixed/sizeof fixed[0];i++)if(!eq(&j,fixed[i][0],fixed[i][1]))return fail("FFT chain contract %s must be %s",fixed[i][0],fixed[i][1]);
  if(!*jget(&j,"contract_id")||!*jget(&j,"evidence"))return fail("FFT chain contract identity/evidence missing");
@@ -107,46 +107,44 @@ int fft_m2_validate(const struct fft_m2_options *o,struct contract *fc,struct co
  }
  logmsg("FFT-M2 offline validation PASS: FFT input=8192, M2 coefficient=8192, two contracts checked; hardware not accessed\n");return 0;
 }
-static int read_fd(int fd,unsigned char data[FRAME]){
- size_t n=0;while(n<FRAME){ssize_t z=pread(fd,data+n,FRAME-n,(off_t)n);if(z<0&&errno==EINTR)continue;if(z<=0)return fail("FFT-M2 input changed/short read");n+=(size_t)z;}
- unsigned char extra;return pread(fd,&extra,1,FRAME)==0?0:fail("FFT-M2 input length changed");
+static int read_fd(int fd,unsigned char *data,unsigned bytes){
+ size_t n=0;while(n<bytes){ssize_t z=pread(fd,data+n,bytes-n,(off_t)n);if(z<0&&errno==EINTR)continue;if(z<=0)return fail("FFT input changed/short read");n+=(size_t)z;}
+ unsigned char extra;return pread(fd,&extra,1,bytes)==0?0:fail("FFT input length changed");
 }
-static int write_fd(int fd,const unsigned char data[FRAME]){
- size_t n=0;while(n<FRAME){ssize_t z=write(fd,data+n,FRAME-n);if(z<0&&errno==EINTR)continue;if(z<=0)return fail("FFT output write failed: %s",strerror(errno));n+=(size_t)z;}
+static int write_fd(int fd,const unsigned char *data,unsigned bytes){
+ size_t n=0;while(n<bytes){ssize_t z=write(fd,data+n,bytes-n);if(z<0&&errno==EINTR)continue;if(z<=0)return fail("FFT output write failed: %s",strerror(errno));n+=(size_t)z;}
  return fsync(fd)?fail("FFT output fsync failed: %s",strerror(errno)):0;
 }
-int fft_chain_stage(const struct fft_m2_options *o,const struct contract *c,int input){
- unsigned char data[FRAME];int rc=1,out=-1,dmapped=0,umapped=0,gused=0,swopened=0,touched=0,owned=0,safe=1,complete=0;
+int fft_packet_stage(const char *output,unsigned bytes,unsigned timeout,const struct contract *c,int input){
+ unsigned char data[16384];int rc=1,out=-1,dmapped=0,umapped=0,gused=0,swopened=0,touched=0,owned=0,safe=1,complete=0;
  uint64_t off=0;struct dma d={.fd=-1};struct ubuf u={.fd=-1};struct gpio g={.out=-1,.in=-1};
  struct axis_switch sw={.input={.fd=-1},.output={.fd=-1}};
- if(read_fd(input,data))goto cleanup;
- out=open(o->fft_output,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0644);if(out<0){fail("new FFT output required: %s",strerror(errno));goto cleanup;}
+ if((bytes!=8192&&bytes!=16384)||read_fd(input,data,bytes))goto cleanup;
+ out=open(output,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0644);if(out<0){fail("new FFT output required: %s",strerror(errno));goto cleanup;}
  if(dma_unbound()||mmio_no_driver(INPUT_SWITCH_BASE)||mmio_no_driver(OUTPUT_SWITCH_BASE)||ubuf_info(&u))goto cleanup;
- long page=sysconf(_SC_PAGESIZE);if(page<=0||layout(u.phys,u.size,(uint64_t)page,c->align,c->btt,c->addr_bits,&off)||
-    dma_window_valid(c->window_base,c->window_size,u.phys,off))goto cleanup;
- uint64_t span=(off+FRAME+(uint64_t)page-1)/(uint64_t)page*(uint64_t)page;if(span>SIZE_MAX||span>u.size){fail("FFT chain mapping size invalid");goto cleanup;}
- umapped=1;if(ubuf_open(&u,(size_t)span))goto cleanup;
+ long page=sysconf(_SC_PAGESIZE);size_t span;if(page<=0||dma_buffer_layout(c,&u,(uint64_t)page,bytes,&off,&span))goto cleanup;
+ umapped=1;if(ubuf_open(&u,span))goto cleanup;
  if(gpio_discover(&g)||!g.mapping_verified){fail("FFT GPIO live mapping unverified");goto cleanup;}
  dmapped=1;if(dma_open(&d,1))goto cleanup;
  for(unsigned ch=0;ch<=0x30;ch+=0x30){uint32_t s=dr(&d,ch+4);if((s&8)||!(s&3)){fail("FFT chain DMA active/SG, refusing takeover");goto cleanup;}}
  gused=1;if(gpio_acquire(&g,c))goto cleanup;
- touched=1;if(dma_reset(&d,o->timeout))goto cleanup;
- swopened=1;if(axis_switch_open(&sw,d.fd,1)||axis_switch_route_fft(&sw,o->timeout))goto cleanup;
- if(fft_configure(&g,c,o->timeout))goto cleanup;
- ubuf_write_frame(u.map,data);ubuf_zero_frame((char*)u.map+off);owned=1;
- if(ubuf_sync(0,FRAME,1,0)||ubuf_sync(off,FRAME,0,0)||stopped)goto cleanup;
- if(dma_transfer(&d,u.phys,u.phys+off,c->addr_bits,o->timeout))goto cleanup;
+ touched=1;if(dma_reset(&d,timeout))goto cleanup;
+ swopened=1;if(axis_switch_open(&sw,d.fd,1)||axis_switch_route_fft(&sw,timeout))goto cleanup;
+ if(fft_configure(&g,c,timeout))goto cleanup;
+ ubuf_write_bytes(u.map,data,bytes);ubuf_zero_bytes((char*)u.map+off,bytes);owned=1;
+ if(ubuf_sync(0,bytes,1,0)||ubuf_sync(off,bytes,0,0)||stopped)goto cleanup;
+ if(dma_packet(&d,u.phys,u.phys+off,c->addr_bits,bytes,timeout,1))goto cleanup;
  complete=1;
- if(ubuf_sync(0,FRAME,1,1)||ubuf_sync(off,FRAME,0,1))goto cleanup;
+ if(ubuf_sync(0,bytes,1,1)||ubuf_sync(off,bytes,0,1))goto cleanup;
  owned=0;
- ubuf_read_frame(data,(char*)u.map+off);if(write_fd(out,data))goto cleanup;
- logmsg("FFT chain stage saved raw 8192-byte natural-order signed16 output to %s\n",o->fft_output);rc=0;
+ ubuf_read_bytes(data,(char*)u.map+off,bytes);if(write_fd(out,data,bytes))goto cleanup;
+ logmsg("FFT stage saved one raw %u-byte natural-order signed16 frame to %s\n",bytes,output);rc=0;
 cleanup:
- if(dmapped&&d.regs&&rc&&touched){logmsg("FFT chain failure snapshot BEFORE DMA-only cleanup:\n");dma_dump(&d);safe=!dma_abort(&d,o->timeout);dma_dump(&d);}
- if(owned&&safe){if(ubuf_sync(0,FRAME,1,1)||ubuf_sync(off,FRAME,0,1))rc=1;}
+ if(dmapped&&d.regs&&rc&&touched){logmsg("FFT failure snapshot BEFORE DMA-only cleanup:\n");dma_dump(&d);safe=!dma_abort(&d,timeout);dma_dump(&d);}
+ if(owned&&safe){if(ubuf_sync(0,bytes,1,1)||ubuf_sync(off,bytes,0,1))rc=1;}
  if(owned&&!safe)logmsg("QUARANTINE udmabuf0: FFT DMA stop unproven; no CPU reuse\n");
  if(swopened&&sw.changed){
-  if(safe&&complete){if(axis_switch_restore(&sw,o->timeout)){fail("FFT routes NOT restored; do not start M2/FFT");rc=1;}}
+  if(safe&&complete){if(axis_switch_restore(&sw,timeout)){fail("FFT routes NOT restored; do not start M2/FFT");rc=1;}}
   else {fail("FFT stage not safely complete: routes NOT restored; operator intervention required");rc=1;}
  }
  if(swopened)axis_switch_close(&sw);
@@ -154,4 +152,7 @@ cleanup:
  if(umapped)ubuf_close(&u);
  if(dmapped)dma_close(&d);
  if(out>=0&&close(out)){fail("FFT output close failed");rc=1;}return rc;
+}
+int fft_chain_stage(const struct fft_m2_options *o,const struct contract *c,int input){
+ return fft_packet_stage(o->fft_output,FRAME,o->timeout,c,input);
 }

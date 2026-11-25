@@ -1,4 +1,6 @@
-> 2026-11-12更新：用户已报告impulse和RADARSAT-1单帧实板及MATLAB比较通过。
+> 2026-11-25协议更新：本文原有fresh-reset/sticky-done步骤是旧RTL的历史测试计划，不得用于新版部署。
+> 新版软件采用`req=1`等待done清零、`req=0`等待新done置位的可重复握手；连续模式板测见
+> `docs/fft_sequence.md`。用户此前报告的单帧结果仍保留，但不证明新版连续切换已通过。
 > 下文为第二阶段留存的准备计划；本地候选契约不代表板端实际已核实版本。
 > 新增Batch的软件接口和首次2帧计划见[batch.md](batch.md)，Batch板级测试仍为NOT_RUN。
 

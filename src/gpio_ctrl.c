@@ -122,26 +122,33 @@ static int waitdone(struct gpio *g,int want,unsigned timeout){
  return fail("FFT config timeout waiting done=%d",want);
 }
 int fft_configure(struct gpio *g,const struct contract *c,unsigned timeout){
- /* RTL clears done only on an accepted request edge, NOT when req goes low.
-  * Its low interval during reconfiguration can be a single 50 MHz cycle.
-  * Require a fresh global reset (no pending request) and an initial low;
-  * never interpret a previous sticky high as acknowledgement of this request. */
+ /* Reconfigurable RTL handshake:
+  *   mode stable, req=1 -> observe this request's done=0;
+  *   req=0 -> observe this request's new done=1.
+  * Keep req asserted while waiting for low.  The setup delay after assertion
+  * prevents an already-low first-use baseline from being sampled before RTL
+  * has had an opportunity to accept the request. */
  if(stopped)return fail("configuration interrupted before request");
+ g->mode=c->mode;
  if(setout(g,c->mode,0))return -1;
  gpio_delay(g,c->setup);
  int initial=getdone(g);
  logmsg("GPIO config baseline: mode_sel=%u req=0 done=%d\n",c->mode,initial);
  if(initial<0)return fail("GPIO config_done read failed");
- if(initial)return fail("stale config_done=1; req low cannot clear it. Fresh FFT/controller global reset required; no new request issued");
- if(stopped)return fail("configuration interrupted before edge");
+ if(g->configured&&initial!=1)return fail("previous FFT configuration completion is not high before reconfiguration");
+ if(stopped)return fail("configuration interrupted before request assertion");
  if(setout(g,c->mode,1))return -1;
- logmsg("GPIO config request rising edge issued; waiting fresh done=1\n");
- int rc=waitdone(g,1,timeout);
- int lower=setout(g,c->mode,0);
- if(rc||lower)return -1;
- /* PG109 requires config acceptance >=1 cycle before frame data. */
  gpio_delay(g,c->setup);
- logmsg("FFT configured mode_sel=%u; fresh done observed, req=0; done remains sticky high\n",c->mode);
+ logmsg("GPIO config request asserted; waiting done=0 while req remains high\n");
+ int low=waitdone(g,0,timeout);
+ int lower=setout(g,c->mode,0);
+ if(low||lower)return -1;
+ logmsg("GPIO config request released after done=0; waiting new done=1\n");
+ if(waitdone(g,1,timeout))return -1;
+ /* Keep the accepted configuration separated from frame data. */
+ gpio_delay(g,c->setup);
+ g->configured=1;
+ logmsg("FFT configured mode_sel=%u; observed done 0->1 with req high->low\n",c->mode);
  return 0;
 }
 void gpio_release(struct gpio *g){

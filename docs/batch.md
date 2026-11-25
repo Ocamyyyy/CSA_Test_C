@@ -22,7 +22,8 @@ Batch开始前执行完整参数、契约、manifest、输入文件长度校验�
 
 **使用板端已核实并实际通过单帧的契约，不得将本地候选JSON仅改status冒充核实。**
 Batch复用validate_contract全部VERIFIED/地址域/独占/GPIO/部署确认检查；
---confirm-fresh-reset只在整个Batch开始时声明一次，而且GPIO函数仍检查初始done低、真实请求与完成握手。
+`--confirm-fresh-reset`为旧命令兼容参数。新版GPIO函数在Batch开始时执行一次可重复握手：请求保持高等待
+done清零，释放请求后等待新done置位；Batch帧间仍不重复配置FFT。
 新CLI保留生产AArch64执行限制；没有环境变量或测试模式可在生产ELF绕过门禁。
 
 ## batch_manifest.json
@@ -71,8 +72,8 @@ for 每帧:
 该函数仍幂等写RS=1，正常帧间不翻转RS、不Reset；地址及两个LENGTH每帧重写。
 S2MM的LENGTH总是先于MM2S的LENGTH提交。BTT限制按每次8192计算，不将整个Batch写入LENGTH。
 
-config_req在首次配置完成后保持0；done持续高不会阻挡数据通道，不逐帧重配或等待done跳变。
-首次配置仍有原fresh-reset前提。Batch结束再启动一个新Batch仍须遵守该前提；本版不做跨进程配置复用。
+config_req在首次配置完成后保持0；done为高不会阻挡数据通道，不逐帧重配。下一次启动新Batch时，新版握手
+会明确观察done清零和重新置位，无需PL全局复位。
 任意一帧失败都停止提交，保留复位前快照，做一次有界DMA控制器清理，不重试、不重配FPGA。
 只有证明DMA已停止才归还CPU所有权；否则报告QUARANTINE，不读取可能仍被写入的输出。
 

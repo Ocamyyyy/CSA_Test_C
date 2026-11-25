@@ -1,0 +1,100 @@
+{
+  "schema": "radarsat1-csa-fft-mode-v1",
+  "status": "REFERENCE_READY_BOARD_NOT_RUN",
+  "mode": "S10",
+  "sample_count": 2048,
+  "stage": "S_RD_3: after phase3, before azimuth IFFT",
+  "source": {
+    "selected_column_matlab_1_based": 816,
+    "selected_column_zero_based": 815,
+    "selection_rule": "maximum column energy of complete S_RD_3 matrix",
+    "matrix_dimensions": [
+      2048,
+      3000
+    ],
+    "range_fast_time_seconds": 0.006574403725593341,
+    "slant_range_m": 985470.24644781381,
+    "azimuth_frequency_order": "natural FFT order before inverse transform",
+    "no_additional_fftshift": true,
+    "source_dimensions": [
+      1536,
+      2048
+    ],
+    "processing_dimensions": [
+      2048,
+      3000
+    ]
+  },
+  "config": {
+    "fft_length": 2048,
+    "direction": "IFFT",
+    "mode_sel_binary": "00",
+    "config_tdata_hex": "0x0D540B",
+    "scaling_schedule_hex": "0x6AA",
+    "total_right_shift_bits": 11,
+    "total_scale": 0.00048828125,
+    "expected_matlab_operation": "ifft(x_quant,2048)",
+    "xilinx_scaling_explanation": "Xilinx inverse DFT is unnormalized; the scaled schedule divides by N, so output equals MATLAB ifft(x).",
+    "output_order": "natural",
+    "rounding": "convergent rounding inside XFFT",
+    "input_component_bits": 16,
+    "output_component_bits": 16,
+    "word_bits": 32,
+    "word_layout": "[31:16]=signed int16 Q, [15:0]=signed int16 I",
+    "file_byte_order": "little-endian uint32",
+    "frame_bytes": 8192
+  },
+  "quantization": {
+    "rule": "one common I/Q gain maps maximum component to 90% positive int16 full scale; MATLAB round; int16 saturation",
+    "gain": 1.6816863433220284,
+    "input_saturation_count": 0,
+    "relative_l2": 2.6884263340720414E-5,
+    "rmse_physical": 0.24355247405102715,
+    "max_abs_error_physical": 0.41060246640922793
+  },
+  "reference": {
+    "expected_operation": "ifft(x_quant,2048)",
+    "ideal_output_saturation_count": 0,
+    "physical_output_relative_l2": 2.6884263340732445E-5,
+    "physical_output_rmse": 0.0053818001867599677
+  },
+  "prior_accepted_4096_reference": {
+    "reference_available": false,
+    "input_available": false,
+    "reference_sha256": "",
+    "input_sha256": ""
+  },
+  "validation": {
+    "board_output_file": "actual.bin",
+    "board_status": "NOT_RUN",
+    "binary_readback_exact": true,
+    "reference_recompute_max_error": 0,
+    "prior_reference_match": true,
+    "thresholds": {
+      "relative_l2_max": 0.02,
+      "rmse_lsb_max": 4,
+      "max_absolute_error_lsb_max": 24,
+      "snr_db_min": 34,
+      "correlation_min": 0.999,
+      "scale_magnitude_error_max": 0.02,
+      "scale_phase_error_rad_max": 0.02
+    }
+  },
+  "files": [
+    {
+      "name": "input.bin",
+      "bytes": 8192,
+      "sha256": "5e11ce5f95c12e194d86a82cae809e5e52f07c3bb8ffa48a0f5167871cdb7a6d"
+    },
+    {
+      "name": "reference.mat",
+      "bytes": 267264,
+      "sha256": "e5498263496bcf0a7f90e3513f89294887134ba93ad89a10c1d95e25a7db7be8"
+    }
+  ],
+  "generated_by": "generate_fft_modes_references.m",
+  "matlab_version": "24.1.0.3303086 (R2024a) Update 9",
+  "matlab_release": "2024a",
+  "generated_at_asia_shanghai": "2026-11-24T21:15:46+08:00",
+  "self_hash_note": "manifest.json does not hash itself."
+}

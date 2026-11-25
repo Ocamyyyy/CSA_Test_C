@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory() as td:
 with tempfile.TemporaryDirectory() as td:
     d=Path(td);fixture(d)
     args=cli_args(d,2);args.remove('--confirm-fresh-reset')
-    p=invoke(args,False);assert '--confirm-fresh-reset' in p.stdout
+    p=invoke(args,False);assert 'native AArch64' in p.stdout
     invoke(CLI+['--run-batch','--run'],False)
     invoke(CLI+['--run','--frames','2'],False)
     invoke(CLI+['--validate','--stats',str(d/'unused')],False)

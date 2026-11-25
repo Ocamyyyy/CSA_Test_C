@@ -50,6 +50,7 @@ int m2_start(struct m2_gpio *,unsigned,int,unsigned);
 int m2_wait_done(struct m2_gpio *,int,unsigned,uint32_t *);
 int m2_validate_contract(const char *,unsigned,int,struct contract *);
 int m2_validate(const struct m2_options *,struct contract *,int *,int *);
+int dma_buffer_layout(const struct contract *,const struct ubuf *,uint64_t,unsigned,uint64_t *,size_t *);
 int m2_buffer_layout(const struct contract *,const struct ubuf *,uint64_t,unsigned,uint64_t *,size_t *);
 int m2_execute(const struct m2_options *,const struct contract *,int,int);
 int m2_inspect(void);

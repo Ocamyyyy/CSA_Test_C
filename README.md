@@ -6,6 +6,12 @@ M2新增入口、独立契约、系数装载/处理协议和板端命令见[docs
 RADARSAT-1 FFT→M2 DDR中转串联命令、失败边界和人工板测步骤见
 [docs/fft_m2_chain.md](docs/fft_m2_chain.md)。串联板测仍为`NOT_RUN`。
 
+S5 4096 FFT、S7 4096 IFFT、S10 2048 IFFT的独立模式命令、单帧16384字节DMA规则和板端步骤见
+[docs/fft_modes.md](docs/fft_modes.md)。三种模式板测均为`NOT_RUN`。
+
+新版可重复FFT配置握手及`S2→S5→S7→S10→S2`无PL复位连续模式测试见
+[docs/fft_sequence.md](docs/fft_sequence.md)。该连续模式板测为`NOT_RUN`。
+
 # FFTTest 用户态 DMA–FFT–DMA 测试
 
 2048点、每点32-bit复数、输入/输出各8192 Byte。程序只搬运原始文件，不执行FFT或变换I/Q。
@@ -77,7 +83,7 @@ XCI最大4096与运行时2048不矛盾，本次不修改4096。
 --inspect                  只读板端审计，不申请GPIO、不写DMA
 --validate                 离线校验契约/manifest/输入，不访问设备
 --run                      显式执行单帧，仅VERIFIED契约可用
---confirm-fresh-reset      run必需：操作者确认FFT/wrapper刚全局复位且没有旧请求
+--confirm-fresh-reset      旧脚本兼容参数；新版可重复握手不要求全局复位
 --input PATH               默认fft_input.bin，必须恰好8192 Byte普通文件
 --output PATH              默认fft_actual.bin，必须不存在
 --manifest PATH            默认fft_test_manifest.json
@@ -88,12 +94,9 @@ XCI最大4096与运行时2048不矛盾，本次不修改4096。
 --help
 ```
 
-GPIO实际接口是**上升沿req、保持done**。拉低req不会清done。
-程序只在已确认fresh-reset前提下接受初始done0，然后发边沿等本次done1、拉低req；
-初始done1直接拒绝，配置后不等待done0。
-初始done0也可能是旧pending，所以单次低电平不能替代fresh-reset确认。
-每组独立run之前都要重新建立该前提；DMA软件复位不能清wrapper。
-不提供绕过配置、重复脉冲、忽略旧done或自动FPGA复位选项。
+新版GPIO接口允许重复配置。程序先稳定mode并拉高req，保持req高直至观察本次done=0；随后拉低req并
+有界等待新的done=1。连续调用还会确认前一次done基线为高。任何一个阶段超时都停止，不提供绕过完成
+检查、无限重复请求或自动FPGA复位选项。
 
 GPIO优先Linux5.4 chardev v1；不可访问时使用sysfs。
 运行时通过41200000设备路径/label识别chip，通过driver+DT宽度+ngpio核对3+1紧凑映射，
@@ -136,7 +139,7 @@ sudo ./ffttest --inspect --contract hardware_contract.json --log inspect-001.log
 ```sh
 ./ffttest --validate --mode 2048 --input impulse/fft_input.bin \
   --manifest fft_test_manifest.json --contract hardware_contract.json
-sudo ./ffttest --run --confirm-fresh-reset --mode 2048 \
+sudo ./ffttest --run --mode 2048 \
   --input impulse/fft_input.bin --output impulse/fft_actual.bin \
   --manifest fft_test_manifest.json --contract hardware_contract.json \
   --timeout-ms 2000 --log run-impulse-001.log
@@ -154,10 +157,10 @@ DT控制器节点只按basename识别，避免其下dma-channel子节点被重�
 失败先保存快照，进行一次有界DMA控制器清理，不重试传输。
 若清理不能确认Halted，不做CPU同步，报告udmabuf隔离要求；其他进程不得复用，直到证明DMA停止。
 协作flock不约束不合作的消费者。各等待阶段独立超时，总用时可能是多个阶段之和。
-首轮impulse→tone→random的成功门槛、fresh-reset限制和回传清单详见board_test_plan。
+首轮impulse→tone→random的历史结果和回传清单详见board_test_plan；其中旧fresh-reset步骤已由新版握手取代。
 
 Batch软件使用、manifest模板及数据/计时定义详见[docs/batch.md](docs/batch.md)。
-原--run路径保留；新命令为--run-batch --frames 2|16|64 --stats PATH，仍须--confirm-fresh-reset。
+原--run路径保留；Batch命令为--run-batch --frames 2|16|64 --stats PATH。新版握手不要求PL全局复位。
 
 Batch回归新增70个软件用例，QEMU与ASan/UBSan均通过；结果与限制见docs/batch.md，日志位于build/batch。
 

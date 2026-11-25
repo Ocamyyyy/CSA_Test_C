@@ -36,9 +36,9 @@ int main(int argc,char **argv){
  puts("SOFTWARE FFT-to-M2 CHAIN MODEL ONLY; NOT A BOARD/DMA/FFT RESULT");
  int input=open(argv[1],O_RDONLY|O_CLOEXEC),coeff=open(argv[2],O_RDONLY|O_CLOEXEC);assert(input>=0&&coeff>=0);
  struct fft_m2_options o={.input=argv[1],.coeff=argv[2],.fft_output=argv[3],.output=argv[4],
-  .manifest="model",.fft_contract="model",.m2_contract="model",.timeout=5,.fresh_reset=!is("fresh-reset"),.require_deployment=1};
+  .manifest="model",.fft_contract="model",.m2_contract="model",.timeout=5,.require_deployment=1};
  struct contract fc={0},mc={0};int rc=fft_m2_execute(&o,&fc,&mc,input,coeff);close(input);close(coeff);
- if(fault){assert(rc);if(is("fresh-reset"))assert(!fft_calls&&!m2_calls);else if(!strncmp(fault,"fft-",4))assert(fft_calls==1&&!m2_calls);else assert(fft_calls==1&&m2_calls==1);}
+ if(fault){assert(rc);if(!strncmp(fault,"fft-",4))assert(fft_calls==1&&!m2_calls);else assert(fft_calls==1&&m2_calls==1);}
  else {assert(!rc&&fft_calls==1&&m2_calls==1);unsigned char saved[FRAME];int fd=open(argv[3],O_RDONLY);assert(fd>=0&&!read_exact(fd,saved));close(fd);assert(!memcmp(saved,simulated_fft,FRAME));}
  printf("FFT-M2 mock: fft_stage=%u m2_stage=%u handoff_bit_exact=%s fault=%s\n",fft_calls,m2_calls,m2_calls?"yes":"not-reached",fault?fault:"none");
  return rc?1:0;

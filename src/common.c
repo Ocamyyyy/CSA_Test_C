@@ -74,7 +74,7 @@ int load_json(const char *p,struct json *j){
 }
 static int eq(const struct json *j,const char *k,const char *v){return !strcmp(jget(j,k),v);}
 int validate_contract(const struct json *c,const struct json *m,unsigned mode,struct contract *o){
- const char *fixed[][2]={{"schema","ffttest-contract-v1"},{"status","VERIFIED"},{"handshake","rising-edge-sticky-done-initial-low"},
+ const char *fixed[][2]={{"schema","ffttest-contract-v1"},{"status","VERIFIED"},{"handshake","request-high-done-low-release-done-high"},
  {"tlast","frame-2048"},{"encoding","signed-int16"},{"sync_semantics","upstream-4.5.3"},
  {"target_gpio_mapping","VERIFIED"},{"deployment_identity","VERIFIED"},{"exclusive","true"},{"dma_address_identity","true"},{"micro_dma","false"}};
  for(unsigned i=0;i<sizeof fixed/sizeof fixed[0];i++)if(!eq(c,fixed[i][0],fixed[i][1]))return fail("contract %s must be %s",fixed[i][0],fixed[i][1]);

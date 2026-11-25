@@ -35,7 +35,8 @@ FFT阶段和M2阶段分别保存/恢复进入时的Switch路由。FFT阶段完�
 ```
 
 `--contract`指定FFT契约，`--manifest`指定串联Manifest，`--coeff`指定Q1.15系数。
-`--run-fft-m2`必须显式给出`--confirm-fresh-reset`；该参数只声明FFT sticky-done握手的真实初始条件，不执行复位。
+新版`--run-fft-m2`使用可重复done清零/置位握手，不再要求全局复位；`--confirm-fresh-reset`仍可作为旧脚本
+兼容参数，但不会执行任何复位。
 离线校验接受静态协议已核实但部署字段仍UNVERIFIED的候选契约；真实运行仍要求两份契约的部署身份、GPIO映射、
 DMA地址身份和独占状态全部VERIFIED，并继续执行运行时driver/地址/映射检查。
 
@@ -55,7 +56,7 @@ sudo ./ffttest-chain --inspect-m2 --log inspect-m2-before.log
   --m2-contract m2_hardware_contract.json
 ```
 
-只有inspect和validate均通过、且操作员确认fresh global reset后才运行：
+只有inspect和validate均通过、且确认当前bitstream为新版握手RTL后才运行：
 
 ```sh
 sudo ./ffttest-chain --run-fft-m2 --confirm-fresh-reset \

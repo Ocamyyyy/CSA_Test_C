@@ -1,0 +1,13 @@
+{
+  "schema": "ffttest-mode-sequence-v1",
+  "status": "REFERENCE_READY_BOARD_NOT_RUN",
+  "order": "S2,S5,S7,S10,S2",
+  "s2_input": "references/fft_m2_com/fft_input.bin",
+  "s2_manifest": "references/fft_m2_com/fft_m2_manifest.json",
+  "s5_input": "references/fft_modes/S5/input.bin",
+  "s5_manifest": "references/fft_modes/S5/manifest.json",
+  "s7_input": "references/fft_modes/S7/input.bin",
+  "s7_manifest": "references/fft_modes/S7/manifest.json",
+  "s10_input": "references/fft_modes/S10/input.bin",
+  "s10_manifest": "references/fft_modes/S10/manifest.json"
+}

@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 int fft_m2_execute(const struct fft_m2_options *o,const struct contract *fc,const struct contract *mc,int input,int coeff){
- if(!o->fresh_reset)return fail("--run-fft-m2 requires --confirm-fresh-reset for the sticky FFT configuration handshake");
  uint64_t start=now_us();if(fft_chain_stage(o,fc,input))return -1;
  int fftout=open(o->fft_output,O_RDONLY|O_CLOEXEC);if(fftout<0)return fail("reopen real FFT output for M2: %s",strerror(errno));
  struct m2_options mo={.input=o->fft_output,.coeff=o->coeff,.output=o->output,.manifest=o->manifest,

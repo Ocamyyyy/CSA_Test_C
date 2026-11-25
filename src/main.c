@@ -1,6 +1,7 @@
 #include "ffttest.h"
 #include "m2.h"
 #include "fft_m2.h"
+#include "fft_modes.h"
 #include <getopt.h>
 #include <sys/utsname.h>
 #include <sys/stat.h>
@@ -12,7 +13,7 @@
 extern FILE *logfile;
 static void onsignal(int s){(void)s;stopped=1;}
 static void help(void){
- puts("FFTTest v1 - 2048 point PS-DDR / DMA / FFT / DMA test\n"
+ puts("FFTTest v1 - PS-DDR / DMA / XFFT / DMA userspace test\n"
  "  --inspect                 read-only board audit (no GPIO request/MMIO writes)\n"
  "  --run                     explicit single hardware transfer; reviewed contract required\n"
  "  --inspect-m2              inspect DMA, Switch routes and M2 GPIO/status\n"
@@ -24,16 +25,23 @@ static void help(void){
  "  --samples N               M2 samples: 1..4096\n"
  "  --fft-output PATH         chain intermediate output (default fft_actual.bin)\n"
  "  --m2-contract PATH        chain M2 contract (default m2_hardware_contract.json)\n"
+ "  --validate-fft-mode       offline S2/S5/S7/S10 manifest/input/contract validation\n"
+ "  --run-fft-mode            execute one independent S2/S5/S7/S10 FFT frame\n"
+ "  --fft-stage NAME          required mode: S2, S5, S7 or S10\n"
+ "  --validate-fft-sequence   offline S2->S5->S7->S10->S2 plan validation\n"
+ "  --run-fft-sequence        five modes, one open/configurable FFT session, no PL reset\n"
+ "  --sequence-plan PATH      flat path plan (default fft_sequence_plan.json)\n"
+ "  --output-dir PATH         sequence output directory (must exist for run)\n"
  "  --run-batch               configure once, sequential 2/16/64 frame transfers\n"
  "  --frames N                Batch frame count: 2, 16 or 64\n"
  "  --stats PATH              Batch JSONL statistics, new file required\n"
  "  --validate                offline contract/manifest/input checks, no devices\n"
- "  --input PATH              raw binary (default fft_input.bin), single: 8192 bytes; Batch: frames * 8192\n"
+ "  --input PATH              action-specific raw input; FFT modes use 8192/16384 bytes\n"
  "  --output PATH             raw result; chain default fft_m2_actual.bin; must not exist\n"
  "  --manifest PATH           action-specific manifest (chain: fft_m2_manifest.json)\n"
- "  --contract PATH           FFT hardware contract (default hardware_contract.json)\n"
- "  --mode 2048               required for run/validate; does not select GPIO code\n"
- "  --confirm-fresh-reset     run/run-batch/run-fft-m2: truthful FFT reset declaration\n"
+ "  --contract PATH           action-specific contract (FFT modes default fft_modes_hardware_contract.json)\n"
+ "  --mode 2048               legacy run/validate only; mode tests use --fft-stage\n"
+ "  --confirm-fresh-reset     accepted for legacy command compatibility; not required by new handshake\n"
  "  --timeout-ms N            1..600000, default 2000 per wait phase\n"
  "  --log PATH                save log to new file (never overwrite existing)\n"
  "  --help\n"
@@ -44,14 +52,17 @@ static int uintarg(const char *s,unsigned *v){
  char *end;errno=0;unsigned long n=strtoul(s,&end,10);if(errno||!*s||*end||*s=='-'||n>600000)return -1;*v=n;return 0;
 }
 int main(int argc,char **argv){
- enum { INSPECT=1,RUN,VALIDATE,BATCH,M2_INSPECT,M2_VALIDATE,M2_RUN,CHAIN_VALIDATE,CHAIN_RUN };int action=0,fresh_reset=0,frames_set=0;unsigned mode=0,timeout=2000,frames=0;
- const char *stats=NULL,*coeff="m2_coeff.bin",*fft_output="fft_actual.bin",*m2_contract="m2_hardware_contract.json";unsigned samples=0;
- int input_set=0,output_set=0,manifest_set=0,contract_set=0,coeff_set=0,samples_set=0,mode_set=0,fft_output_set=0,m2_contract_set=0;
+ enum { INSPECT=1,RUN,VALIDATE,BATCH,M2_INSPECT,M2_VALIDATE,M2_RUN,CHAIN_VALIDATE,CHAIN_RUN,FFT_MODE_VALIDATE,FFT_MODE_RUN,FFT_SEQUENCE_VALIDATE,FFT_SEQUENCE_RUN };int action=0,fresh_reset=0,frames_set=0;unsigned mode=0,timeout=2000,frames=0;
+ const char *stats=NULL,*coeff="m2_coeff.bin",*fft_output="fft_actual.bin",*m2_contract="m2_hardware_contract.json",*fft_stage=NULL;
+ const char *sequence_plan="fft_sequence_plan.json",*output_dir="fft_sequence_output";unsigned samples=0;
+ int input_set=0,output_set=0,manifest_set=0,contract_set=0,coeff_set=0,samples_set=0,mode_set=0,fft_output_set=0,m2_contract_set=0,fft_stage_set=0,sequence_plan_set=0,output_dir_set=0;
  const char *input="fft_input.bin",*output="fft_actual.bin",*manifest="fft_test_manifest.json",*contract="hardware_contract.json",*logpath=NULL;
  static const struct option opts[]={
  {"inspect-m2",0,0,1000},{"validate-m2",0,0,1001},{"run-m2",0,0,1002},
  {"coeff",1,0,1003},{"samples",1,0,1004},{"validate-fft-m2",0,0,1005},{"run-fft-m2",0,0,1006},
- {"fft-output",1,0,1007},{"m2-contract",1,0,1008},{"run-batch",0,0,'B'},{"frames",1,0,'N'},{"stats",1,0,'S'},{"inspect",0,0,'i'},{"run",0,0,'r'},{"validate",0,0,'v'},{"help",0,0,'h'},
+ {"fft-output",1,0,1007},{"m2-contract",1,0,1008},{"validate-fft-mode",0,0,1009},{"run-fft-mode",0,0,1010},{"fft-stage",1,0,1011},
+ {"validate-fft-sequence",0,0,1012},{"run-fft-sequence",0,0,1013},{"sequence-plan",1,0,1014},{"output-dir",1,0,1015},
+ {"run-batch",0,0,'B'},{"frames",1,0,'N'},{"stats",1,0,'S'},{"inspect",0,0,'i'},{"run",0,0,'r'},{"validate",0,0,'v'},{"help",0,0,'h'},
  {"input",1,0,'I'},{"output",1,0,'O'},{"manifest",1,0,'M'},{"contract",1,0,'C'},
  {"confirm-fresh-reset",0,0,'F'},{"mode",1,0,'m'},{"timeout-ms",1,0,'t'},{"log",1,0,'l'},{0,0,0,0}};
  int opt;while((opt=getopt_long(argc,argv,"",opts,NULL))!=-1){
@@ -66,6 +77,15 @@ int main(int argc,char **argv){
     action=opt==1005?CHAIN_VALIDATE:CHAIN_RUN;break;
    case 1007:fft_output_set=1;fft_output=optarg;break;
    case 1008:m2_contract_set=1;m2_contract=optarg;break;
+   case 1009:case 1010:
+    if(action)return fail("choose exactly one action"),2;
+    action=opt==1009?FFT_MODE_VALIDATE:FFT_MODE_RUN;break;
+   case 1011:fft_stage_set=1;fft_stage=optarg;break;
+   case 1012:case 1013:
+    if(action)return fail("choose exactly one action"),2;
+    action=opt==1012?FFT_SEQUENCE_VALIDATE:FFT_SEQUENCE_RUN;break;
+   case 1014:sequence_plan_set=1;sequence_plan=optarg;break;
+   case 1015:output_dir_set=1;output_dir=optarg;break;
    case 'B':case 'i':case 'r':case 'v':if(action)return fail("choose exactly one action"),2;action=opt=='B'?BATCH:opt=='i'?INSPECT:opt=='r'?RUN:VALIDATE;break;
    case 'h':help();return 0;case 'I':input_set=1;input=optarg;break;case 'O':output_set=1;output=optarg;break;
    case 'F':fresh_reset=1;break;
@@ -79,9 +99,15 @@ int main(int argc,char **argv){
  }
  if(!action||optind!=argc){help();return 2;}
  int is_m2=action>=M2_INSPECT&&action<=M2_RUN,is_chain=action==CHAIN_VALIDATE||action==CHAIN_RUN;
+ int is_fft_mode=action==FFT_MODE_VALIDATE||action==FFT_MODE_RUN;
+ int is_fft_sequence=action==FFT_SEQUENCE_VALIDATE||action==FFT_SEQUENCE_RUN;
  if(!is_m2&&!is_chain&&(coeff_set||samples_set))return fail("--coeff/--samples require an M2 action"),2;
  if(is_chain&&samples_set)return fail("FFT-M2 chain is fixed at 2048 samples; do not use --samples"),2;
  if(!is_chain&&(fft_output_set||m2_contract_set))return fail("--fft-output/--m2-contract require an FFT-M2 chain action"),2;
+ if(!is_fft_mode&&fft_stage_set)return fail("--fft-stage requires --validate-fft-mode or --run-fft-mode"),2;
+ if(!is_fft_sequence&&(sequence_plan_set||output_dir_set))return fail("--sequence-plan/--output-dir require an FFT sequence action"),2;
+ if(is_fft_sequence&&(input_set||output_set||manifest_set||mode_set||fft_stage_set||fresh_reset))
+  return fail("FFT sequence paths come from --sequence-plan/--output-dir; no --input/--output/--manifest/--mode/--fft-stage/--confirm-fresh-reset"),2;
  if(is_m2){
   if(mode_set||fresh_reset)return fail("M2 does not use --mode or --confirm-fresh-reset"),2;
   if(!input_set)input="m2_input.bin";
@@ -91,21 +117,63 @@ int main(int argc,char **argv){
  }
  if(is_chain){
   if(mode_set)return fail("FFT-M2 chain is fixed at mode 2048; do not use --mode"),2;
-  if(action==CHAIN_VALIDATE&&fresh_reset)return fail("--confirm-fresh-reset is only for --run-fft-m2"),2;
+  if(action==CHAIN_VALIDATE&&fresh_reset)return fail("--confirm-fresh-reset is not used by offline validation"),2;
   if(!input_set)input="fft_input.bin";
   if(!output_set)output="fft_m2_actual.bin";
   if(!manifest_set)manifest="fft_m2_manifest.json";
   if(!contract_set)contract="hardware_contract.json";
+ }
+ if(is_fft_mode){
+  if(!fft_stage_set)return fail("--fft-stage S2|S5|S7|S10 is required"),2;
+  if(mode_set)return fail("use --fft-stage, not legacy --mode, for S2/S5/S7/S10"),2;
+  if(action==FFT_MODE_VALIDATE&&fresh_reset)return fail("--confirm-fresh-reset is not used by offline validation"),2;
+  if(!input_set)input="input.bin";
+  if(!output_set)output="actual.bin";
+  if(!manifest_set)manifest="manifest.json";
+  if(!contract_set)contract="fft_modes_hardware_contract.json";
+ }
+ if(is_fft_sequence){
+  if(!contract_set)contract="fft_modes_hardware_contract.json";
  }
  if(action!=BATCH&&(frames_set||stats))return fail("--frames/--stats require --run-batch"),2;
  if(logpath){int fd=open(logpath,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0644);if(fd<0)return fail("new log %s: %s",logpath,strerror(errno)),2;
  logfile=fdopen(fd,"w");if(!logfile){close(fd);return 2;}}
  struct sigaction sa={0};sa.sa_handler=onsignal;sigaction(SIGINT,&sa,NULL);sigaction(SIGTERM,&sa,NULL);
  struct utsname un;if(!uname(&un))logmsg("FFTTest v1 platform=%s %s %s %s\n",un.sysname,un.release,un.machine,un.nodename);
- logmsg("action=%s DMA=0x%llx GPIO=0x41200000 timeout=%u ms per phase\n",action==CHAIN_VALIDATE?"validate-fft-m2":action==CHAIN_RUN?"run-fft-m2":action==M2_INSPECT?"inspect-m2":action==M2_VALIDATE?"validate-m2":action==M2_RUN?"run-m2":action==BATCH?"run-batch":action==INSPECT?"inspect":action==RUN?"run":"validate",(unsigned long long)DMA_BASE,timeout);
- logmsg("input=%s output=%s manifest=%s contract=%s log=%s\n",input,output,manifest,contract,logpath?logpath:"stdout");
+ logmsg("action=%s DMA=0x%llx GPIO=0x41200000 timeout=%u ms per phase\n",action==FFT_SEQUENCE_VALIDATE?"validate-fft-sequence":action==FFT_SEQUENCE_RUN?"run-fft-sequence":action==FFT_MODE_VALIDATE?"validate-fft-mode":action==FFT_MODE_RUN?"run-fft-mode":action==CHAIN_VALIDATE?"validate-fft-m2":action==CHAIN_RUN?"run-fft-m2":action==M2_INSPECT?"inspect-m2":action==M2_VALIDATE?"validate-m2":action==M2_RUN?"run-m2":action==BATCH?"run-batch":action==INSPECT?"inspect":action==RUN?"run":"validate",(unsigned long long)DMA_BASE,timeout);
+ if(!is_fft_sequence)logmsg("input=%s output=%s manifest=%s contract=%s log=%s\n",input,output,manifest,contract,logpath?logpath:"stdout");
  int rc=1,dmapped=0,gused=0,uopened=0,device_owned=0,dma_touched=0,safe=1;
  struct dma d={.fd=-1};struct ubuf u={.fd=-1};struct gpio g={.out=-1,.in=-1};uint64_t off=0;
+ if(is_fft_sequence){
+  struct fft_sequence_options options={.plan=sequence_plan,.output_dir=output_dir,.contract=contract,
+   .timeout=timeout,.require_deployment=action==FFT_SEQUENCE_RUN};struct fft_sequence sequence;
+  logmsg("sequence_plan=%s output_dir=%s contract=%s\n",sequence_plan,output_dir,contract);
+  if(fft_sequence_validate(&options,&sequence))goto cleanup;
+  if(action==FFT_SEQUENCE_VALIDATE)rc=0;
+  else {
+#ifndef __aarch64__
+   fail("hardware execution requires native AArch64 build/platform");
+#else
+   rc=fft_sequence_execute(&options,&sequence);
+#endif
+  }
+  fft_sequence_close(&sequence);goto cleanup;
+ }
+ if(is_fft_mode){
+  struct fft_mode_options options={.stage=fft_stage,.input=input,.output=output,.manifest=manifest,.contract=contract,
+   .timeout=timeout,.fresh_reset=fresh_reset,.require_deployment=action==FFT_MODE_RUN};
+  const struct fft_mode_spec *spec=NULL;struct contract fc;int input_fd=-1;
+  if(fft_mode_validate(&options,&spec,&fc,&input_fd))goto cleanup;
+  if(action==FFT_MODE_VALIDATE)rc=0;
+  else {
+#ifndef __aarch64__
+   fail("hardware execution requires native AArch64 build/platform");
+#else
+   rc=fft_mode_execute(&options,spec,&fc,input_fd);
+#endif
+  }
+  close(input_fd);goto cleanup;
+ }
  if(is_chain){
   logmsg("FFT-M2 chain: fft_output=%s final_output=%s coeff=%s m2_contract=%s\n",fft_output,output,coeff,m2_contract);
   struct fft_m2_options options={.input=input,.coeff=coeff,.fft_output=fft_output,.output=output,
@@ -166,7 +234,6 @@ int main(int argc,char **argv){
  logmsg("Contract validated id=%s mode_sel=%u NFFT=2048 BTT=%u addr=%u alignment=%u\n",jget(&cj,"contract_id"),c.mode,c.btt,c.addr_bits,c.align);
  logmsg("format=%s %s %s direction=%s scaling=%s order=%s quantization=%s config_word=%s\n",jget(&cj,"byte_order"),jget(&cj,"iq_order"),jget(&cj,"encoding"),jget(&cj,"direction"),jget(&cj,"scaling"),jget(&cj,"output_order"),jget(&cj,"quantization"),jget(&cj,"config_word"));
  if(action==VALIDATE){logmsg("Offline validation PASSED; hardware not accessed\n");rc=0;goto cleanup;}
- if(!fresh_reset){fail("--run requires --confirm-fresh-reset: RTL has sticky done and no software clear/pending status");goto cleanup;}
 #ifndef __aarch64__
  fail("hardware execution requires native AArch64 build/platform");goto cleanup;
 #endif

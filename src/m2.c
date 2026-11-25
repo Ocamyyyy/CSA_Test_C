@@ -105,16 +105,19 @@ int m2_validate(const struct m2_options *o,struct contract *c,int *input,int *co
  logmsg("M2 offline validation PASS: contract=%s samples=%u input/coeff/output=%u bytes, metadata only\n",jget(&hw,"contract_id"),o->samples,bytes);
  return 0;
 }
-int m2_buffer_layout(const struct contract *c,const struct ubuf *u,uint64_t page,unsigned bytes,uint64_t *off,size_t *maplen){
- if(!c->window_size||c->window_base>UINT64_MAX-(c->window_size-1))return fail("invalid M2 DMA window");
- if(!page||(page&(page-1))||page>1048576||!bytes||bytes>16384||(bytes&3)||u->phys%4)return fail("invalid M2 buffer layout inputs");
+int dma_buffer_layout(const struct contract *c,const struct ubuf *u,uint64_t page,unsigned bytes,uint64_t *off,size_t *maplen){
+ if(!c->window_size||c->window_base>UINT64_MAX-(c->window_size-1))return fail("invalid DMA packet window");
+ if(!page||(page&(page-1))||page>1048576||!bytes||bytes>16384||(bytes&3)||u->phys%4)return fail("invalid DMA packet buffer layout inputs");
  uint64_t out=((bytes+page-1)/page+1)*page,span=(out+bytes+page-1)/page*page;
- if(span>u->size||span>SIZE_MAX||out<bytes||u->phys>UINT64_MAX-(out+bytes-1))return fail("M2 buffers overlap/overflow/exceed udmabuf");
+ if(span>u->size||span>SIZE_MAX||out<bytes||u->phys>UINT64_MAX-(out+bytes-1))return fail("DMA packet buffers overlap/overflow/exceed udmabuf");
  uint64_t last=u->phys+out+bytes-1;
  if(c->addr_bits<32||c->addr_bits>64||(c->addr_bits<64&&last>=(1ULL<<c->addr_bits))||
     u->phys<c->window_base||u->phys-c->window_base>=c->window_size||
-    out+bytes>c->window_size-(u->phys-c->window_base))return fail("M2 buffers outside DMA address window");
+    out+bytes>c->window_size-(u->phys-c->window_base))return fail("DMA packet buffers outside DMA address window");
  *off=out;*maplen=(size_t)span;return 0;
+}
+int m2_buffer_layout(const struct contract *c,const struct ubuf *u,uint64_t page,unsigned bytes,uint64_t *off,size_t *maplen){
+ return dma_buffer_layout(c,u,page,bytes,off,maplen);
 }
 static int read_packet(int fd,unsigned char *data,unsigned bytes){
  unsigned n=0;while(n<bytes){

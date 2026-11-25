@@ -1,3 +1,6 @@
+> 2026-11-25：握手已升级为req高等待done低、req低等待新done高；新增连续模式测试见
+> [fft_sequence.md](fft_sequence.md)。下文仍含旧阶段的历史措辞。
+>
 > 2026-11-12：新增Batch实现及软件验证结果见[batch.md](batch.md)。
 > 原41个CLI场景保留，新增70个Batch软件用例通过；Batch板级测试NOT_RUN。
 > 下文为第二阶段历史记录。
@@ -25,7 +28,7 @@
 模拟复位、先收后发、双通道IOC+Idle、错误、超时、短帧、Halted、取消及复位失败。
 新增1GiB DMA窗口边界及DT控制器名称匹配，保证不把控制器下的dma-channel子目录重复计数。
 
-GPIO模型依据真实RTL的上升沿/pending/sticky done行为，测试首次成功、旧高拒绝、第二次请求拒绝、
+GPIO模型依据新版可重复请求/done行为，测试首次低基线、旧高被本次请求清除、连续请求、
 延迟ready、超时拉低req、读写错误、等待/请求前中断。
 使用模拟时钟，避免调度延迟使几毫秒的单元测试偶发失败；不据此验证真实总线时序。
 假sysfs目录验证了chardev ID与sysfs全局base不同、symlink/平台父目录发现、driver或宽度不符拒绝。
@@ -36,7 +39,7 @@ GPIO模型依据真实RTL的上升沿/pending/sticky done行为，测试首次�
 
 ## 本轮源码最小修改
 
-- `gpio_ctrl.c`：上升沿/sticky done协议，拒绝旧高，不等待done回零；失败时尝试拉低请求。
+- `gpio_ctrl.c`：请求保持高等待done回零，释放后等待新done置位；覆盖TREADY延迟并在失败时拉低请求。
   动态发现沿sysfs真实父路径定位平台，验证gpio-xilinx+DT3/1/dual+4条线，不混淆两类chip编号。
 - `common.c`、`ffttest.h`：新握手profile、目标映射/部署确认门禁、DMA可达窗口；
   为握手测试增加I/O及时钟注入接口。原FFT数据通路和打包协议保持原样。

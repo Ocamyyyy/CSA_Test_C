@@ -20,7 +20,7 @@ struct contract {
 };
 struct gpio {
  char chip[256]; unsigned base, lines; int out, in, sysfs, mapping_verified;
- unsigned offsets[4]; unsigned exported, mode;
+ unsigned offsets[4]; unsigned exported, mode, configured;
  int (*set_outputs)(void *, unsigned, unsigned);
  int (*read_done)(void *);
  uint64_t (*clock_ms)(void *);

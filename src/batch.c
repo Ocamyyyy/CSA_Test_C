@@ -23,7 +23,6 @@ int batch_validate(const struct batch_options *o,struct contract *c,int *input_f
  if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size<0||(uint64_t)st.st_size!=expected){
   close(fd);return fail("Batch input must be a regular file of exactly %" PRIu64 " bytes",expected);
  }
- if(!o->fresh_reset){close(fd);return fail("--run-batch requires --confirm-fresh-reset");}
  *input_fd=fd;logmsg("Batch validated: frames=%u frame_bytes=%u total=%" PRIu64 " contract=%s\n",o->frames,FRAME,expected,jget(&cj,"contract_id"));
  return 0;
 }
